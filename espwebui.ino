@@ -91,6 +91,7 @@ void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
         WiFi.begin(ssids, passwords);
         if (WiFi.waitForConnectResult() == WL_CONNECTED) break;
         ioStream->println("WiFi connection failed, retry..");
+        delay(300);
     }
 
     ioStream->println("WiFi connected.\nLocal IP:");
