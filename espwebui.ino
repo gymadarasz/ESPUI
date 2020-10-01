@@ -44,6 +44,7 @@ WiFiApp::WiFiApp(uint16_t port, const char* wsuri, size_t clientListSize, Stream
 WiFiApp::~WiFiApp() {
     delete server;
     delete ws;
+    while (clients.size()) delete clients.pop();
     delete clients;
 }
 
