@@ -1,75 +1,25 @@
-
 #include <ESPAsyncWebServer.h>
 #include <functional>
 #include "EEPROM.h"
+#include "LinkedList.h"
 
 class WiFiAppClient {
     AsyncWebSocket* socket;
     AsyncWebSocketClient* client;
 public:
     WiFiAppClient(AsyncWebSocket* socket, AsyncWebSocketClient* client);
+    AsyncWebSocket* getSocket();
     AsyncWebSocketClient* getClient();
 };
 
 WiFiAppClient::WiFiAppClient(AsyncWebSocket* socket, AsyncWebSocketClient* client): socket(socket), client(client) {}
 
+AsyncWebSocket* WiFiAppClient::getSocket() {
+    return socket;
+}
+
 AsyncWebSocketClient* WiFiAppClient::getClient() {
     return client;
-}
-
-
-class WiFiAppClientList {
-    WiFiAppClient** clients;
-    size_t size;
-    size_t length = 0;
-public:
-    WiFiAppClientList(size_t size);
-    ~WiFiAppClientList();
-    bool resize(size_t newSize);
-    WiFiAppClient* add(AsyncWebSocket* socket, AsyncWebSocketClient* client);
-    void remove(AsyncWebSocketClient* client);
-};
-
-WiFiAppClientList::WiFiAppClientList(size_t size): size(size) {
-    if (size <= 0) size = 1;
-    clients = (WiFiAppClient**)calloc(size, sizeof(WiFiAppClient*));
-}
-
-WiFiAppClientList::~WiFiAppClientList() {
-    for (size_t i = 0; i < size; i++) {
-        delete clients[i];
-        clients[i] = NULL;
-    }
-    free(clients);
-}
-
-bool WiFiAppClientList::resize(size_t newSize) {
-    if (newSize < size) return false;
-    WiFiAppClient** newClients = (WiFiAppClient**)realloc(clients, sizeof(WiFiAppClient*) * newSize);
-    if (!newClients) return false;
-    for (size_t i = size-1; i < newSize; i++) newClients[i] = NULL;
-    clients = newClients;
-    size = newSize;
-    return true;
-}
-
-WiFiAppClient* WiFiAppClientList::add(AsyncWebSocket* socket, AsyncWebSocketClient* client) {
-    for (size_t i = 0; i < size; i++) {
-        if (NULL == clients[i]) return clients[i] = new WiFiAppClient(socket, client);
-    }
-    if (resize(size * 2)) {
-        return add(socket, client);
-    }
-    return NULL;
-}
-
-void WiFiAppClientList::remove(AsyncWebSocketClient* client) {
-    for (size_t i = 0; i < size; i++) {
-        if (client->id() == clients[i]->getClient()->id()) {
-            delete clients[i];
-            clients[i] = NULL;
-        }
-    }
 }
 
 
@@ -78,7 +28,7 @@ class WiFiApp {
     EEPROMClass* eeprom;
     AsyncWebServer* server;
     AsyncWebSocket* ws;
-    WiFiAppClientList* clientList;
+    XLinkedList<WiFiAppClient*>* clients;
 public:
     WiFiApp(uint16_t port = 80, const char* wsuri = "/ws", size_t clientListSize = 10, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
     ~WiFiApp();
@@ -88,13 +38,13 @@ public:
 WiFiApp::WiFiApp(uint16_t port, const char* wsuri, size_t clientListSize, Stream* ioStream, EEPROMClass* eeprom): ioStream(ioStream), eeprom(eeprom) {
     server = new AsyncWebServer(port);
     ws = new AsyncWebSocket(wsuri);
-    clientList = new WiFiAppClientList(clientListSize);
+    clients = new XLinkedList<WiFiAppClient*>();
 }
 
 WiFiApp::~WiFiApp() {
     delete server;
     delete ws;
-    delete clientList;
+    delete clients;
 }
 
 void WiFiApp::begin() {
@@ -178,31 +128,41 @@ void WiFiApp::begin() {
                 <head>
                     <title>Hello World!</title>
                     <script>
-                        let socket = new WebSocket("ws://{{ host }}/ws");
+                        'use strict';
 
-                        socket.onopen = function(e) {
-                            alert("[open] Connection established");
-                            alert("Sending to server");
-                            socket.send("My name is John");
-                        };
+                        class WsAppClient {
+                            constructor() {
+                                this.socket = new WebSocket("ws://{{ host }}/ws");
 
-                        socket.onmessage = function(event) {
-                            alert(`[message] Data received from server: ${event.data}`);
-                        };
+                                this.socket.onopen = function(e) {
+                                    // alert("[open] Connection established");
+                                    // alert("Sending to server");
+                                    // socket.send("My name is John");
+                                };
 
-                        socket.onclose = function(event) {
-                            if (event.wasClean) {
-                                alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-                            } else {
-                                // e.g. server process killed or network down
-                                // event.code is usually 1006 in this case
-                                alert('[close] Connection died');
+                                this.socket.onmessage = function(event) {
+                                    // alert(`[message] Data received from server: ${event.data}`);
+                                };
+
+                                this.socket.onclose = function(event) {
+                                    if (event.wasClean) {
+                                        // alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                                    } else {
+                                        // e.g. server process killed or network down
+                                        // event.code is usually 1006 in this case
+                                        alert('[close] Connection died');
+                                    }
+                                };
+
+                                this.socket.onerror = function(error) {
+                                    alert(`[error] ${error.message}`);
+                                };
+
                             }
-                        };
+                        }
 
-                        socket.onerror = function(error) {
-                            alert(`[error] ${error.message}`);
-                        };
+                        let app = new WsAppClient();
+                        
                     </script>
                 </head>
                 <body>
@@ -224,7 +184,14 @@ void WiFiApp::begin() {
         switch (type) {
             case WS_EVT_DISCONNECT:
             ioStream->printf("Disconnected!\n");
-            clientList->remove(client);
+
+            for (size_t i = 0; i < clients->size(); i++) {
+                if (clients->get(i)->getClient()->id() == client->id()) {
+                    clients->remove(i);
+                    i--;
+                }
+            }
+
             break;
 
             case WS_EVT_PONG:
@@ -238,9 +205,8 @@ void WiFiApp::begin() {
             case WS_EVT_CONNECT:
             ioStream->print("Connected: ");
             ioStream->println(client->id());
-            if (!clientList->add(socket, client)) {
-                ioStream->println("ERROR: App-Client is not attached.");
-            }
+            
+            clients->add(new WiFiAppClient(socket, client));
             break;
 
             case WS_EVT_DATA:   
@@ -263,7 +229,7 @@ void WiFiApp::begin() {
 // --------------
 
 void tests() {
-    WiFiAppClientList clientList();
+    
 }
 
 // ---------------
