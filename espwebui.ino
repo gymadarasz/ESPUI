@@ -3,26 +3,101 @@
 #include <functional>
 #include "EEPROM.h"
 
-class WiFiApp {
-    AsyncWebServer* server;
-    AsyncWebSocket* ws;
+class WiFiAppClient {
+    AsyncWebSocket* socket;
+    AsyncWebSocketClient* client;
 public:
-    WiFiApp(uint16_t port = 80, const char* wsuri = "/ws");
-    ~WiFiApp();
-    void begin(Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    WiFiAppClient(AsyncWebSocket* socket, AsyncWebSocketClient* client);
+    AsyncWebSocketClient* getClient();
 };
 
-WiFiApp::WiFiApp(uint16_t port, const char* wsuri) {
+WiFiAppClient::WiFiAppClient(AsyncWebSocket* socket, AsyncWebSocketClient* client): socket(socket), client(client) {}
+
+AsyncWebSocketClient* WiFiAppClient::getClient() {
+    return client;
+}
+
+
+class WiFiAppClientList {
+    WiFiAppClient** clients;
+    size_t size;
+    size_t length = 0;
+public:
+    WiFiAppClientList(size_t size);
+    ~WiFiAppClientList();
+    bool resize(size_t newSize);
+    WiFiAppClient* add(AsyncWebSocket* socket, AsyncWebSocketClient* client);
+    void remove(AsyncWebSocketClient* client);
+};
+
+WiFiAppClientList::WiFiAppClientList(size_t size): size(size) {
+    if (size <= 0) size = 1;
+    clients = (WiFiAppClient**)calloc(size, sizeof(WiFiAppClient*));
+}
+
+WiFiAppClientList::~WiFiAppClientList() {
+    for (size_t i = 0; i < size; i++) {
+        delete clients[i];
+        clients[i] = NULL;
+    }
+    free(clients);
+}
+
+bool WiFiAppClientList::resize(size_t newSize) {
+    if (newSize < size) return false;
+    WiFiAppClient** newClients = (WiFiAppClient**)realloc(clients, sizeof(WiFiAppClient*) * newSize);
+    if (!newClients) return false;
+    for (size_t i = size-1; i < newSize; i++) newClients[i] = NULL;
+    clients = newClients;
+    size = newSize;
+    return true;
+}
+
+WiFiAppClient* WiFiAppClientList::add(AsyncWebSocket* socket, AsyncWebSocketClient* client) {
+    for (size_t i = 0; i < size; i++) {
+        if (NULL == clients[i]) return clients[i] = new WiFiAppClient(socket, client);
+    }
+    if (resize(size * 2)) {
+        return add(socket, client);
+    }
+    return NULL;
+}
+
+void WiFiAppClientList::remove(AsyncWebSocketClient* client) {
+    for (size_t i = 0; i < size; i++) {
+        if (client->id() == clients[i]->getClient()->id()) {
+            delete clients[i];
+            clients[i] = NULL;
+        }
+    }
+}
+
+
+class WiFiApp {
+    Stream* ioStream;
+    EEPROMClass* eeprom;
+    AsyncWebServer* server;
+    AsyncWebSocket* ws;
+    WiFiAppClientList* clientList;
+public:
+    WiFiApp(uint16_t port = 80, const char* wsuri = "/ws", size_t clientListSize = 10, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    ~WiFiApp();
+    void begin();
+};
+
+WiFiApp::WiFiApp(uint16_t port, const char* wsuri, size_t clientListSize, Stream* ioStream, EEPROMClass* eeprom): ioStream(ioStream), eeprom(eeprom) {
     server = new AsyncWebServer(port);
     ws = new AsyncWebSocket(wsuri);
+    clientList = new WiFiAppClientList(clientListSize);
 }
 
 WiFiApp::~WiFiApp() {
     delete server;
     delete ws;
+    delete clientList;
 }
 
-void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
+void WiFiApp::begin() {
 
     const int wsec = 5;
     const long idelay = 300;
@@ -65,10 +140,10 @@ void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
         // store new wifi credentials
 
         wifiaddr = wifiaddrStart;
-        EEPROM.writeString(wifiaddr, ssid);
+        eeprom->writeString(wifiaddr, ssid);
         wifiaddr += ssid.length() + 1;
-        EEPROM.writeString(wifiaddr, password);
-        EEPROM.commit();
+        eeprom->writeString(wifiaddr, password);
+        eeprom->commit();
 
         ioStream->println("Credentials are saved..");
     }
@@ -76,9 +151,9 @@ void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
     // load wifi credentials
 
     wifiaddr = wifiaddrStart;
-    ssid = EEPROM.readString(wifiaddr);
+    ssid = eeprom->readString(wifiaddr);
     wifiaddr += ssid.length() + 1;
-    password = EEPROM.readString(wifiaddr);
+    password = eeprom->readString(wifiaddr);
 
     // connecting to wifi
     char ssids[sSize];
@@ -145,10 +220,11 @@ void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
         request->send(404);
     });
 
-    ws->onEvent([ioStream](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    ws->onEvent([this](AsyncWebSocket *socket, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
         switch (type) {
             case WS_EVT_DISCONNECT:
             ioStream->printf("Disconnected!\n");
+            clientList->remove(client);
             break;
 
             case WS_EVT_PONG:
@@ -162,6 +238,9 @@ void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
             case WS_EVT_CONNECT:
             ioStream->print("Connected: ");
             ioStream->println(client->id());
+            if (!clientList->add(socket, client)) {
+                ioStream->println("ERROR: App-Client is not attached.");
+            }
             break;
 
             case WS_EVT_DATA:   
@@ -181,15 +260,21 @@ void WiFiApp::begin(Stream* ioStream, EEPROMClass* eeprom) {
 
 }
 
+// --------------
 
-WiFiApp app(80, "/ws");
+void tests() {
+    WiFiAppClientList clientList();
+}
 
-// -------------- 
+// ---------------
 
+WiFiApp app(80, "/ws", 10, &Serial, &EEPROM);
 
 
 void setup()
 {
+    tests();
+
     const int baudrate = 115200;
     const int eepromSize = 1000;
 
@@ -200,7 +285,7 @@ void setup()
         ESP.restart();
     }
 
-    app.begin(&Serial, &EEPROM);
+    app.begin();
 
 }
 
