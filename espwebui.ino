@@ -2,6 +2,33 @@
 #include <functional>
 #include "EEPROM.h"
 #include "LinkedList.h"
+#include "ArduinoJson.h"
+#include <stdlib.h>
+
+char* lltoa(char* buff, long long value, int base = 10) {
+    // check that the base if valid
+    if (base < 2 || base > 36) { *buff = '\0'; return buff; }
+
+    char* ptr = buff, *ptr1 = buff, tmp_char;
+    int tmp_value;
+
+    do {
+        tmp_value = value;
+        value /= base;
+        *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz" [35 + (tmp_value - value * base)];
+    } while ( value );
+
+    // Apply negative sign
+    if (tmp_value < 0) *ptr++ = '-';
+    *ptr-- = '\0';
+    while(ptr1 < ptr) {
+        tmp_char = *ptr;
+        *ptr--= *ptr1;
+        *ptr1++ = tmp_char;
+    }
+    return buff;
+}
+
 
 class WiFiAppClient {
     AsyncWebSocket* socket;
@@ -22,33 +49,37 @@ AsyncWebSocketClient* WiFiAppClient::getClient() {
     return client;
 }
 
+#define CB_OK 0
+#define CB_ERR 1
+
+typedef int (*call_t)(void*);
 
 class WiFiApp {
     Stream* ioStream;
     EEPROMClass* eeprom;
     AsyncWebServer* server;
     AsyncWebSocket* ws;
-    XLinkedList<WiFiAppClient*>* clients;
+    XLinkedList<WiFiAppClient*>* appClients;
 public:
     WiFiApp(uint16_t port = 80, const char* wsuri = "/ws", size_t clientListSize = 10, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
     ~WiFiApp();
-    void begin();
+    void begin(call_t call);
 };
 
 WiFiApp::WiFiApp(uint16_t port, const char* wsuri, size_t clientListSize, Stream* ioStream, EEPROMClass* eeprom): ioStream(ioStream), eeprom(eeprom) {
     server = new AsyncWebServer(port);
     ws = new AsyncWebSocket(wsuri);
-    clients = new XLinkedList<WiFiAppClient*>();
+    appClients = new XLinkedList<WiFiAppClient*>();
 }
 
 WiFiApp::~WiFiApp() {
     delete server;
     delete ws;
-    while (clients.size()) delete clients.pop();
-    delete clients;
+    while (appClients->size()) delete appClients->pop();
+    delete appClients;
 }
 
-void WiFiApp::begin() {
+void WiFiApp::begin(call_t call) {
 
     const int wsec = 5;
     const long idelay = 300;
@@ -123,31 +154,36 @@ void WiFiApp::begin() {
     ioStream->println("WiFi connected.\nLocal IP:");
     ioStream->println(WiFi.localIP().toString());
 
-    server->on("/", [](AsyncWebServerRequest *request) {
+    server->on("/", [call](AsyncWebServerRequest *request) {
         String html = R"INDEX_HTML(
             <html>
                 <head>
                     <title>Hello World!</title>
+                    <style></style>
                     <script>
                         'use strict';
 
                         class WsAppClient {
-                            constructor() {
+                            constructor(controls) {
+                                this.controls = controls;
+
                                 this.socket = new WebSocket("ws://{{ host }}/ws");
 
-                                this.socket.onopen = function(e) {
-                                    // alert("[open] Connection established");
-                                    // alert("Sending to server");
-                                    // socket.send("My name is John");
+                                this.socket.onopen = (event) => {
+                                    console.log('socket open', event);
+                                    // this.socket.send(JSON.stringify({
+                                    //     "event": "onSocketOpen",
+                                    //     "arguments": [e]
+                                    // }));
                                 };
 
-                                this.socket.onmessage = function(event) {
-                                    // alert(`[message] Data received from server: ${event.data}`);
+                                this.socket.onmessage = (event) => {
+                                    console.log(`[message] Data received from server: ${event.data}`, event);
                                 };
 
-                                this.socket.onclose = function(event) {
+                                this.socket.onclose = (event) => {
                                     if (event.wasClean) {
-                                        // alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                                        console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
                                     } else {
                                         // e.g. server process killed or network down
                                         // event.code is usually 1006 in this case
@@ -155,24 +191,51 @@ void WiFiApp::begin() {
                                     }
                                 };
 
-                                this.socket.onerror = function(error) {
+                                this.socket.onerror = (error) => {
                                     alert(`[error] ${error.message}`);
                                 };
+                            }
 
+                            show() {
+                                this.controls.forEach((ctrl) => {
+                                    if (ctrl.target && ctrl.target.selector && ctrl.html) {
+                                        (ctrl.target.all ? 
+                                            document.querySelectorAll(ctrl.target.selector) : 
+                                            [document.querySelector(ctrl.target.selector)]
+                                        ).forEach((elem) => {
+                                            if (ctrl.target.prepend) {
+                                                elem.innerHTML = ctrl.html + elem.innerHTML;
+                                            } else {
+                                                elem.innerHTML += ctrl.html;
+                                            }
+                                        });
+                                    }
+                                });
                             }
                         }
 
-                        let app = new WsAppClient();
+                        let app = new WsAppClient([
+                            {
+                                html: `<button onclick="app.socket.send(JSON.stringify({
+                                    call: '{{ call }}', 
+                                    args: [event],
+                                }))">Test Button</button>`,
+                                target: {selector: 'body', all: false, prepend: false},
+                            },
+                        ]);
                         
                     </script>
                 </head>
-                <body>
-                    Hello World!
+                <body onload="app.show()">
+                    Hello World
                 </body>
             </html>
         )INDEX_HTML";
 
+        char buff[32];
+
         html.replace("{{ host }}", WiFi.localIP().toString());
+        html.replace("{{ call }}", lltoa(buff, (uintptr_t)call));
         
         request->send(200, "text/html", html);
     });
@@ -182,43 +245,64 @@ void WiFiApp::begin() {
     });
 
     ws->onEvent([this](AsyncWebSocket *socket, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+
+        StaticJsonDocument<2000> doc;
+        DeserializationError error;
+        WiFiAppClient* appClient;
+
+        const char* call;
+
         switch (type) {
+            
             case WS_EVT_DISCONNECT:
-            ioStream->printf("Disconnected!\n");
+                ioStream->printf("Disconnected!\n");
 
-            for (size_t i = 0; i < clients->size(); i++) {
-                if (clients->get(i)->getClient()->id() == client->id()) {
-                    clients->remove(i);
-                    i--;
+                for (size_t i = 0; i < appClients->size(); i++) {
+                    if (appClients->get(i)->getClient()->id() == client->id()) {
+                        appClients->remove(i);
+                        i--;
+                    }
                 }
-            }
 
-            break;
+                break;
 
             case WS_EVT_PONG:
-            ioStream->printf("Received PONG!\n");
-            break;
+                ioStream->printf("Received PONG!\n");
+                break;
 
             case WS_EVT_ERROR:
-            ioStream->printf("WebSocket Error!\n");
-            break;
+                ioStream->printf("WebSocket Error!\n");
+                break;
 
             case WS_EVT_CONNECT:
-            ioStream->print("Connected: ");
-            ioStream->println(client->id());
-            
-            clients->add(new WiFiAppClient(socket, client));
-            break;
+                ioStream->print("Connected: ");
+                ioStream->println(client->id());
+                appClient = new WiFiAppClient(socket, client); 
+                appClients->add(appClient);
+                break;
 
             case WS_EVT_DATA:   
-            ioStream->println("Data:");
-            ioStream->println(client->id());
-            ioStream->println((char*)data);
-            break;
+                ioStream->println("Data:");
+                ioStream->println(client->id());
+                ioStream->println((char*)data);
+
+                error = deserializeJson(doc, data);
+                call = doc["call"];
+                if (error) {
+                    ioStream->print(F("deserializeJson() failed: "));
+                    ioStream->println(error.c_str());
+                } else {
+                    ioStream->printf("call: %s\n", call);
+                    call_t callfn = (call_t)atoll(call);
+                    if (CB_OK != callfn(&doc)) {
+                        ioStream->println("error");
+                    }
+                }
+                break;
 
             default:
-            ioStream->println("Unknown??");
-            break;
+                ioStream->println("Unknown??");
+                break;
         }
     });
     server->addHandler(ws);
@@ -237,6 +321,11 @@ void tests() {
 
 WiFiApp app(80, "/ws", 10, &Serial, &EEPROM);
 
+int onButtonClick(void* args) {
+    Serial.println("CLICKED!");
+    return CB_OK;
+}
+
 
 void setup()
 {
@@ -252,7 +341,7 @@ void setup()
         ESP.restart();
     }
 
-    app.begin();
+    app.begin(onButtonClick);
 
 }
 
