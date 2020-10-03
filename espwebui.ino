@@ -38,12 +38,12 @@ void cb_delay(long ms, cb_delay_callback_func_t callback = nullptr) {
 }
 
 
-class SelfCounter {
+class ESPUIControlCounter {
     static int next;
     const char* prefix;
     String id;
 public:  
-    SelfCounter(const char* prefix = ""): prefix(prefix) {
+    ESPUIControlCounter(const char* prefix = "espuictrl"): prefix(prefix) {
         id = prefix + String(next);
         next++;
     }
@@ -52,7 +52,7 @@ public:
     }
 };
 
-int SelfCounter::next = 0;
+int ESPUIControlCounter::next = 0;
 
 class ESPUIConnection {
     AsyncWebSocket* socket;
@@ -80,7 +80,7 @@ typedef int (*TESPUICallback)(void*);
 
 typedef void (*errfn_t)(const char* arg);
 
-class ESPUIControl: public SelfCounter {
+class ESPUIControl: public ESPUIControlCounter {
     static const String prefix;
     static const String suffix;
 
@@ -101,13 +101,14 @@ class ESPUIControl: public SelfCounter {
     bool all;
     bool prepend;
     const char* script;
+    const char* clazz;
 
     String output;
 
     
 public:
-    ESPUIControl(String html = "", const char* selector = "body", bool all = true, bool prepend = false, const char* script = NULL):
-        SelfCounter("ctrl-"), html(html), selector(selector), all(all), prepend(prepend), script(script) {}
+    ESPUIControl(String html = "", const char* selector = "body", bool all = true, bool prepend = false, const char* script = NULL, const char* clazz = ""):
+        ESPUIControlCounter(), html(html), selector(selector), all(all), prepend(prepend), script(script), clazz(clazz) {}
 
     bool set(const char* key, const char* value) {
         String search = prefix + key + suffix;
@@ -133,6 +134,7 @@ public:
         output.replace(prefix + "prepend" + suffix, prepend ? "true" : "false");
         output.replace(prefix + "script" + suffix, script ? script : "false");
         output.replace(prefix + "id" + suffix, getId());
+        output.replace(prefix + "class" + suffix, clazz);
         return output;
     }
 };
@@ -153,6 +155,7 @@ class ESPUIApp {
     String password;
     cb_delay_callback_func_t whileConnectingLoop;
     void connect();
+    String getSetterMessage(String selector, String prop, String content, bool inAllDOMElement = true);
 public:
     ESPUIApp(uint16_t port = 80, const char* wsuri = "/ws", cb_delay_callback_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
     ~ESPUIApp();
@@ -160,7 +163,12 @@ public:
     void add(ESPUIControl control, bool prepend = false);
     void begin();
     void establish();
-    AsyncWebSocket* getWs();
+    void set(String selector, String prop, String content, bool inAllDOMElement = true);
+    void setOne(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement = true);
+    void setExcept(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement = true);
+    void setById(String id, String prop, String content, bool inAllDOMElement = true);
+    void setOneById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement = true);
+    void setExceptById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement = true);
 };
 
 ESPUIApp::ESPUIApp(uint16_t port, const char* wsuri, cb_delay_callback_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): whileConnectingLoop(whileConnectingLoop), ioStream(ioStream), eeprom(eeprom) {
@@ -272,7 +280,7 @@ void ESPUIApp::begin() {
                                 this.socket.onmessage = (event) => {
                                     console.log(`[message] Data received from server: ${event.data}`, event);
                                     let json = JSON.parse(event.data);
-                                    this[json.call]['apply'](this, json.args);
+                                    this.set.apply(this, json);
                                 };
 
                                 this.socket.onclose = (event) => {
@@ -310,12 +318,12 @@ void ESPUIApp::begin() {
                                 });
                             }
 
-                            replace(selector, content, inner = true, all = true) {
+                            set(selector, prop, content, all = true) {
                                 (all ? document.querySelectorAll(selector) : document.querySelector(selector)).forEach((elem) => {
-                                    if (inner) elem.innerHTML = content;
-                                    else elem.outerHTML = content;
+                                    elem[prop] = content;
                                 });
                             }
+
                         }
 
                         let app = new ESPUIAppClient([{{ controls }}]);
@@ -426,8 +434,46 @@ void ESPUIApp::connect() {
     ioStream->println(WiFi.localIP().toString());
 }
 
-AsyncWebSocket* ESPUIApp::getWs() {
-    return ws;
+String ESPUIApp::getSetterMessage(String selector, String prop, String content, bool inAllDOMElement) {
+    String msg("[\"{{ selector }}\", \"{{ prop }}\", \"{{ content }}\", {{ all }}]");
+    msg.replace("{{ selector }}", selector);
+    msg.replace("{{ prop }}", prop);
+    msg.replace("{{ content }}", content);
+    msg.replace("{{ all }}", inAllDOMElement ? "true" : "false");
+    return msg;
+}
+
+void ESPUIApp::set(String selector, String prop, String content, bool inAllDOMElement) {
+    String msg = getSetterMessage(selector, prop, content, inAllDOMElement);
+    ws->textAll(msg);
+}
+
+void ESPUIApp::setOne(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement) {
+    String msg = getSetterMessage(selector, prop, content, inAllDOMElement);
+    ws->text(conn->getClient()->id(), msg);
+}
+
+void ESPUIApp::setExcept(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement) {
+    String msg = getSetterMessage(selector, prop, content, inAllDOMElement);
+    size_t size = connects->size();
+    AsyncWebSocketClient* cli = conn->getClient();
+    for (size_t i=0; i<size; i++) {
+        AsyncWebSocketClient* client = connects->get(i)->getClient();
+        if (cli->id() != client->id())
+            ws->text(client->id(), msg);
+    }
+}
+
+void ESPUIApp::setById(String id, String prop, String content, bool inAllDOMElement) {
+    set("#" + id, prop, content, inAllDOMElement);
+}
+
+void ESPUIApp::setOneById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement) {
+    set("#" + id, prop, content, inAllDOMElement);
+}
+
+void ESPUIApp::setExceptById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement) {
+    set("#" + id, prop, content, inAllDOMElement);
 }
 
 
@@ -459,35 +505,33 @@ void setup()
 
 
     const char* header_html = R"HTML(
-        <h1 id="{{ id }}">{{ label }}</h1>
+        <h1 id="{{ id }}" class="{{ class }}">{{ text }}</h1>
     )HTML";
 
     const char* label_html = R"HTML(
-        <label id="{{ id }}">{{ label }}</label>
+        <label id="{{ id }}" class="{{ class }}">{{ text }}</label>
     )HTML";
     
     const char* button_html = R"HTML(
-        <button id="{{ id }}" onclick="app.socket.send(JSON.stringify({
+        <button id="{{ id }}"  class="{{ class }}" onclick="app.socket.send(JSON.stringify({
             call: '{{ callback }}',
             args: [event]
-        }))">{{ label }}</button>
+        }))">{{ text }}</button>
     )HTML";
 
 
-
     ESPUIControl header1(header_html);
-    header1.set("label", "My Test Header Line");
+    header1.set("text", "My Test Header Line");
     app.add(header1);
     
     ESPUIControl label1(label_html);
-    label1.set("label", "My Test Label");
+    label1.set("text", "My Test Label");
     app.add(label1);
     label1id = label1.getId();
     
-
     ESPUIControl button1(button_html);
     button1.set("callback", onButton1Click);
-    button1.set("label", "My Test Callback Button");
+    button1.set("text", "My Test Callback Button");
     app.add(button1);
 
     app.begin();
@@ -502,15 +546,6 @@ void loop() {
     if (now-last > 1000) {
         last = now;
 
-        String msg(R"MSG({
-            "call": "replace",
-            "args": ["#{{ id }}", "{{ content }}", {{ inner }}, {{ all }}]
-        })MSG");
-        msg.replace("{{ id }}", label1id);
-        msg.replace("{{ content }}", String(now) + "ms");
-        msg.replace("{{ inner }}", "true");
-        msg.replace("{{ all }}", "true");
-
-        app.getWs()->textAll(msg);
+        app.setById(label1id, "innerHTML", String(String(now) + "ms"));
     }
 }
