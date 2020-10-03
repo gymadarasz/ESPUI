@@ -54,16 +54,77 @@ AsyncWebSocketClient* WiFiAppClient::getClient() {
 
 typedef int (*call_t)(void*);
 
+
+
+class WSAppControl {
+    const char* tpl = R"TPL(
+        {
+            html: `{{ html }}`,
+            target: {
+                selector: '{{ selector }}', 
+                all: {{ all }}, 
+                prepend: {{ prepend }}
+            },
+            script: {{ script }}
+        }
+    )TPL";
+
+    const char* html;
+    const char* selector;
+    bool all;
+    bool prepend;
+    const char* script;
+
+    String output;
+public:
+    WSAppControl(const char* html = NULL, const char* selector = NULL, bool all = false, bool prepend = false, const char* script = NULL):
+        html(html), selector(selector), all(all), prepend(prepend), script(script) {}
+
+    String toString() {
+        output = tpl;
+        output.replace("{{ html }}", html ? html : "false");
+        output.replace("{{ selector }}", selector ? selector : "false");
+        output.replace("{{ all }}", all ? "true" : "false");
+        output.replace("{{ prepend }}", prepend ? "true" : "false");
+        output.replace("{{ script }}", script ? script : "false");
+        return output;
+    }
+};
+
+class WSAppButtonCtrl: public WSAppControl {
+    call_t call;
+    String output;
+public:
+    WSAppButtonCtrl(call_t call, const char* selector = "body", bool all = false, bool prepend = false, const char* script = NULL):
+        call(call),  WSAppControl(R"HTML(
+            <button onclick="app.socket.send(JSON.stringify({
+                call: '{{ call }}', 
+                args: [event]
+            }))">Test Button</button>
+        )HTML", selector, all, prepend, script) {}
+
+    String toString() {
+        output = WSAppControl::toString();
+        Serial.print("DBG(output):"); Serial.println(output);
+        char tmp[32];
+        output.replace("{{ call }}", lltoa(tmp, (uintptr_t)call));
+        return output;
+    }
+};
+
+
 class WiFiApp {
     Stream* ioStream;
     EEPROMClass* eeprom;
     AsyncWebServer* server;
     AsyncWebSocket* ws;
     XLinkedList<WiFiAppClient*>* appClients;
+    String controls = "";
 public:
     WiFiApp(uint16_t port = 80, const char* wsuri = "/ws", size_t clientListSize = 10, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
     ~WiFiApp();
-    void begin(call_t call);
+    void addControl(String control, bool prepend = false);
+    void begin();
 };
 
 WiFiApp::WiFiApp(uint16_t port, const char* wsuri, size_t clientListSize, Stream* ioStream, EEPROMClass* eeprom): ioStream(ioStream), eeprom(eeprom) {
@@ -79,7 +140,15 @@ WiFiApp::~WiFiApp() {
     delete appClients;
 }
 
-void WiFiApp::begin(call_t call) {
+void WiFiApp::addControl(String control, bool prepend) {
+    if (prepend) {
+        controls = control + "," + controls;
+    } else {
+        controls += control + ",";
+    }
+}
+
+void WiFiApp::begin() {
 
     const int wsec = 5;
     const long idelay = 300;
@@ -154,7 +223,7 @@ void WiFiApp::begin(call_t call) {
     ioStream->println("WiFi connected.\nLocal IP:");
     ioStream->println(WiFi.localIP().toString());
 
-    server->on("/", [call](AsyncWebServerRequest *request) {
+    server->on("/", [this](AsyncWebServerRequest *request) {
         String html = R"INDEX_HTML(
             <html>
                 <head>
@@ -210,19 +279,14 @@ void WiFiApp::begin(call_t call) {
                                             }
                                         });
                                     }
+                                    if (typeof ctrl.script === 'function') {
+                                        ctrl.script(this);
+                                    }
                                 });
                             }
                         }
 
-                        let app = new WsAppClient([
-                            {
-                                html: `<button onclick="app.socket.send(JSON.stringify({
-                                    call: '{{ call }}', 
-                                    args: [event],
-                                }))">Test Button</button>`,
-                                target: {selector: 'body', all: false, prepend: false},
-                            },
-                        ]);
+                        let app = new WsAppClient([{{ controls }}]);
                         
                     </script>
                 </head>
@@ -232,10 +296,8 @@ void WiFiApp::begin(call_t call) {
             </html>
         )INDEX_HTML";
 
-        char buff[32];
-
         html.replace("{{ host }}", WiFi.localIP().toString());
-        html.replace("{{ call }}", lltoa(buff, (uintptr_t)call));
+        html.replace("{{ controls }}", controls);
         
         request->send(200, "text/html", html);
     });
@@ -253,7 +315,7 @@ void WiFiApp::begin(call_t call) {
         const char* call;
 
         switch (type) {
-            
+
             case WS_EVT_DISCONNECT:
                 ioStream->printf("Disconnected!\n");
 
@@ -311,6 +373,8 @@ void WiFiApp::begin(call_t call) {
 
 }
 
+
+
 // --------------
 
 void tests() {
@@ -341,8 +405,14 @@ void setup()
         ESP.restart();
     }
 
-    app.begin(onButtonClick);
+    
+    WSAppButtonCtrl button(onButtonClick);
+    app.addControl(button.toString());
 
+    WSAppControl control("<h1>MAIN HEADER</h1>", "body", false, true);
+    app.addControl(control.toString());
+
+    app.begin();
 }
 
 void loop() {}
