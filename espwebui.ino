@@ -37,6 +37,37 @@ void cb_delay(long ms, cb_delay_callback_func_t callback = nullptr) {
     while(millis() < ms) if (callback) callback(); 
 }
 
+typedef void (*TTemplateErrorHandler)(const char* key);
+
+class Template {
+    static const String prefix;
+    static const String suffix;
+    static void defaultErrorHandler(const char* key);
+public:
+    static TTemplateErrorHandler errorHandler;
+    static bool set(String* tpl, const char* key, String value);
+};
+
+const String Template::prefix = "{{ ";
+const String Template::suffix = " }}";
+
+TTemplateErrorHandler Template::errorHandler = Template::defaultErrorHandler;
+
+void Template::defaultErrorHandler(const char* key) {
+    Serial.printf("ERROR: Template key not found: '%s'\n", key);
+}
+
+bool Template::set(String* tpl, const char* key, String value) {
+    String search = prefix + key + suffix;
+    if (tpl->indexOf(search) < 0) {
+        errorHandler(key);
+        return false;
+    }
+    tpl->replace(search, value);
+    return true;
+}
+
+
 
 class ESPUIControlCounter {
     static int next;
@@ -81,8 +112,6 @@ typedef int (*TESPUICallback)(void*);
 typedef void (*errfn_t)(const char* arg);
 
 class ESPUIControl: public ESPUIControlCounter {
-    static const String prefix;
-    static const String suffix;
 
     const char* tpl = R"TPL(
         {
@@ -111,10 +140,7 @@ public:
         ESPUIControlCounter(), html(html), selector(selector), all(all), prepend(prepend), script(script), clazz(clazz) {}
 
     bool set(const char* key, const char* value) {
-        String search = prefix + key + suffix;
-        if (html.indexOf(search) < 0) return false;
-        html.replace(search, value);
-        return true;
+        return Template::set(&html, key, value);
     }
 
     bool set(const char* key, long long value) {
@@ -128,19 +154,16 @@ public:
 
     String toString() {
         output = tpl;
-        output.replace(prefix + "html" + suffix, html.length() ? html : "false");
-        output.replace(prefix + "selector" + suffix, selector ? selector : "false");
-        output.replace(prefix + "all" + suffix, all ? "true" : "false");
-        output.replace(prefix + "prepend" + suffix, prepend ? "true" : "false");
-        output.replace(prefix + "script" + suffix, script ? script : "false");
-        output.replace(prefix + "id" + suffix, getId());
-        output.replace(prefix + "class" + suffix, clazz);
+        Template::set(&output, "html", html.length() ? html : "false");
+        Template::set(&output, "selector", selector ? selector : "false");
+        Template::set(&output, "all", all ? "true" : "false");
+        Template::set(&output, "prepend", prepend ? "true" : "false");
+        Template::set(&output, "script", script ? script : "false");
+        Template::set(&output, "id", getId());
+        Template::set(&output, "class", clazz);
         return output;
     }
 };
-
-const String ESPUIControl::prefix = "{{ ";
-const String ESPUIControl::suffix = " }}";
 
 
 class ESPUIApp {
@@ -334,8 +357,8 @@ void ESPUIApp::begin() {
             </html>
         )INDEX_HTML";
 
-        html.replace("{{ host }}", WiFi.localIP().toString());
-        html.replace("{{ controls }}", controls);
+        Template::set(&html, "host", WiFi.localIP().toString());
+        Template::set(&html, "controls", controls);
         
         request->send(200, "text/html", html);
     });
@@ -436,10 +459,10 @@ void ESPUIApp::connect() {
 
 String ESPUIApp::getSetterMessage(String selector, String prop, String content, bool inAllDOMElement) {
     String msg("[\"{{ selector }}\", \"{{ prop }}\", \"{{ content }}\", {{ all }}]");
-    msg.replace("{{ selector }}", selector);
-    msg.replace("{{ prop }}", prop);
-    msg.replace("{{ content }}", content);
-    msg.replace("{{ all }}", inAllDOMElement ? "true" : "false");
+    Template::set(&msg, "selector", selector);
+    Template::set(&msg, "prop", prop);
+    Template::set(&msg, "content", content);
+    Template::set(&msg, "all", inAllDOMElement ? "true" : "false");
     return msg;
 }
 
