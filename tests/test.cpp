@@ -7,6 +7,7 @@
 #include "../lltoa.h"
 #include "../cb_delay.h"
 #include "../Template.h"
+#include "../ESPUI.h"
 
 int counter;
 char lastErrorMsg[100] = {0};
@@ -14,6 +15,22 @@ char lastErrorKey[100] = {0};
 
 int main() {
     Tester tester(true, true);
+
+    tester.run("Test for ESPUIControlCounter", [](Tester* tester) {
+        String id;
+
+        ESPUIControlCounter counterA("testprefixA-");
+        id = counterA.getId();
+        tester->assertEquals(__FL__, "testprefixA-1", id.c_str());
+
+        ESPUIControlCounter counterB("testprefixB-");
+        id = counterB.getId();
+        tester->assertEquals(__FL__, "testprefixB-2", id.c_str());
+
+        ESPUIControlCounter counterC("testprefixC-");
+        id = counterC.getId();
+        tester->assertEquals(__FL__, "testprefixC-3", id.c_str());
+    });
 
     tester.run("Test for Template", [](Tester* tester) {
         String tpl;

@@ -7,22 +7,8 @@
 #include "lltoa.h"
 #include "cb_delay.h"
 #include "Template.h"
+#include "ESPUI.h"
 
-class ESPUIControlCounter {
-    static int next;
-    const char* prefix;
-    String id;
-public:  
-    ESPUIControlCounter(const char* prefix = "espuictrl"): prefix(prefix) {
-        id = prefix + String(next);
-        next++;
-    }
-    String getId() {
-        return id;
-    }
-};
-
-int ESPUIControlCounter::next = 0;
 
 class ESPUIConnection {
     AsyncWebSocket* socket;
