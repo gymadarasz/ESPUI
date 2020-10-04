@@ -37,15 +37,16 @@ void cb_delay(long ms, cb_delay_callback_func_t callback = nullptr) {
     while(millis() < ms) if (callback) callback(); 
 }
 
-typedef void (*TTemplateErrorHandler)(const char* key);
+typedef void (*TTemplateErrorHandler)(const char* msg, const char* key);
 
 class Template {
     static const String prefix;
     static const String suffix;
-    static void defaultErrorHandler(const char* key);
+    static void defaultErrorHandler(const char* msg, const char* key);
 public:
     static TTemplateErrorHandler errorHandler;
     static bool set(String* tpl, const char* key, String value);
+    static void check(String tpl);
 };
 
 const String Template::prefix = "{{ ";
@@ -53,21 +54,28 @@ const String Template::suffix = " }}";
 
 TTemplateErrorHandler Template::errorHandler = Template::defaultErrorHandler;
 
-void Template::defaultErrorHandler(const char* key) {
-    Serial.printf("ERROR: Template key not found: '%s'\n", key);
+void Template::defaultErrorHandler(const char* msg, const char* key) {
+    Serial.printf(msg, key);
 }
 
 bool Template::set(String* tpl, const char* key, String value) {
     String search = prefix + key + suffix;
     if (tpl->indexOf(search) < 0) {
-        errorHandler(key);
+        errorHandler("ERROR: Template key not found: '%s'\n", key);
         return false;
     }
     tpl->replace(search, value);
     return true;
 }
 
-
+void Template::check(String tpl) {
+    size_t prefixAt = tpl.indexOf(prefix);
+    size_t suffixAt = tpl.indexOf(suffix);
+    if (prefixAt >= 0 && suffixAt > prefixAt) {
+        String substr = tpl.substring(prefixAt, suffixAt + suffix.length());
+        errorHandler("ERROR: Template variable is unset: %s\n", substr.c_str());
+    }
+}
 
 class ESPUIControlCounter {
     static int next;
@@ -359,6 +367,7 @@ void ESPUIApp::begin() {
 
         Template::set(&html, "host", WiFi.localIP().toString());
         Template::set(&html, "controls", controls);
+        Template::check(html);
         
         request->send(200, "text/html", html);
     });
@@ -463,6 +472,7 @@ String ESPUIApp::getSetterMessage(String selector, String prop, String content, 
     Template::set(&msg, "prop", prop);
     Template::set(&msg, "content", content);
     Template::set(&msg, "all", inAllDOMElement ? "true" : "false");
+    Template::check(msg);
     return msg;
 }
 
@@ -540,6 +550,20 @@ void setup()
             call: '{{ callback }}',
             args: [event]
         }))">{{ text }}</button>
+    )HTML";
+
+    const char* input_html = R"HTML(
+        <input id="{{ id }}" class="{{ class }}" type="{{ type }}" value="{{ value }}" placeholder="{{ placeholder }}">
+    )HTML";
+
+    const char* select_html = R"HTML(
+        <select id="{{ id }}" class="{{ class }}" {{ multiple }}>
+            {{ options }}
+        </select>
+    )HTML";
+
+    const char* option_html = R"HTML(
+        <option id="{{ id }}" class="{{ class }}" value="{{ value }}" {{ selected }}>{{ text }}</option>
     )HTML";
 
 
