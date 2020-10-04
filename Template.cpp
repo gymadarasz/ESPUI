@@ -7,16 +7,20 @@
 const String Template::prefix("{{ ");
 const String Template::suffix(" }}");
 
-TTemplateErrorHandler Template::errorHandler = nullptr;
+TTemplateErrorHandler Template::errorHandler = defaultErrorHandler;
 
 void Template::defaultErrorHandler(const char* msg, const char* key) {
     Serial.printf(msg, key);
 }
 
+void Template::setErrorHandler(TTemplateErrorHandler handler) {
+    errorHandler = handler;
+}
+
 bool Template::set(String* tpl, const char* key, String value) {
     String search = prefix + key + suffix;
     if (tpl->indexOf(search) < 0) {
-        if (errorHandler) errorHandler("ERROR: Template key not found: '%s'\n", key);
+        errorHandler("ERROR: Template key not found: '%s'\n", key);
         return false;
     }
     tpl->replace(search, value);
@@ -32,11 +36,13 @@ bool Template::set(String* tpl, const char* key, long long value) {
     return set(tpl, key, lltoa(buff, value));
 }
 
-void Template::check(String tpl) {
+bool Template::check(String tpl) {
     size_t prefixAt = tpl.indexOf(prefix);
     size_t suffixAt = tpl.indexOf(suffix);
     if (prefixAt >= 0 && suffixAt > prefixAt) {
         String substr = tpl.substring(prefixAt, suffixAt + suffix.length());
         errorHandler("ERROR: Template variable is unset: %s\n", substr.c_str());
+        return false;
     }
+    return true;
 }

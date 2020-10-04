@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <WString.h>
 #include "Tester.h"
 #include "../LinkedList.h"
@@ -8,14 +9,75 @@
 #include "../Template.h"
 
 int counter;
+char lastErrorMsg[100] = {0};
+char lastErrorKey[100] = {0};
 
 int main() {
-    Tester tester;
+    Tester tester(true, true);
 
     tester.run("Test for Template", [](Tester* tester) {
-        String tpl("abcd{{ value }}efgh");
-        Template::set(&tpl, "value", 1234);
+        String tpl;
+        bool result;
+
+        Template::setErrorHandler([](const char* msg, const char* key) {
+            strcpy(lastErrorMsg, msg);
+            strcpy(lastErrorKey, key);
+        });
+
+        strcpy(lastErrorMsg, "");
+        strcpy(lastErrorKey, "");
+        tpl = "abcd{{ value }}efgh";
+        result = Template::set(&tpl, "value", 1234);
         tester->assertEquals(__FL__, "abcd1234efgh", tpl.c_str());
+        tester->assertTrue(__FL__, result);
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+        result = Template::check(tpl);
+        tester->assertTrue(__FL__, result);
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+
+
+        strcpy(lastErrorMsg, "");
+        strcpy(lastErrorKey, "");
+        tpl = "abcd{{ value }}ef{{ value }}gh";
+        result = Template::set(&tpl, "value", 1234);
+        tester->assertEquals(__FL__, "abcd1234ef1234gh", tpl.c_str());
+        tester->assertTrue(__FL__, result);
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+        result = Template::check(tpl);
+        tester->assertTrue(__FL__, result);
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+
+
+        strcpy(lastErrorMsg, "");
+        strcpy(lastErrorKey, "");
+        tpl = "ab{{ foo }}cd{{ value }}ef{{ value }}gh";
+        result = Template::set(&tpl, "value", 1234);
+        tester->assertEquals(__FL__, "ab{{ foo }}cd1234ef1234gh", tpl.c_str());
+        tester->assertTrue(__FL__, result);
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+        result = Template::check(tpl);
+        tester->assertFalse(__FL__, result);
+        tester->assertEquals(__FL__, "ERROR: Template variable is unset: %s\n", lastErrorMsg);
+        tester->assertEquals(__FL__, "{{ foo }}", lastErrorKey);
+
+
+        strcpy(lastErrorMsg, "");
+        strcpy(lastErrorKey, "");
+        tpl = "ab{{ foo }}cd{{ value }}ef{{ value }}gh";
+        result = Template::set(&tpl, "bar", 1234);
+        tester->assertEquals(__FL__, "ab{{ foo }}cd{{ value }}ef{{ value }}gh", tpl.c_str());
+        tester->assertFalse(__FL__, result);
+        tester->assertEquals(__FL__, "ERROR: Template key not found: '%s'\n", lastErrorMsg);
+        tester->assertEquals(__FL__, "bar", lastErrorKey);
+        result = Template::check(tpl);
+        tester->assertFalse(__FL__, result);
+        tester->assertEquals(__FL__, "ERROR: Template variable is unset: %s\n", lastErrorMsg);
+        tester->assertEquals(__FL__, "{{ foo }}", lastErrorKey);
     });
 
     tester.run("Testing linked list", [](Tester* tester) {

@@ -9,12 +9,13 @@ class Template {
     static const String prefix;
     static const String suffix;
     static void defaultErrorHandler(const char* msg, const char* key);
-public:
     static TTemplateErrorHandler errorHandler;
+public:
+    static void setErrorHandler(TTemplateErrorHandler handler); 
     static bool set(String* tpl, const char* key, String value);
     static bool set(String* tpl, const char* key, const char* value);
     static bool set(String* tpl, const char* key, long long value);
-    static void check(String tpl);
+    static bool check(String tpl);
 };
 
 #endif // TEMPLATE_H

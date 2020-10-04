@@ -39,7 +39,7 @@
 }
 
 Tester::Tester(bool verbose, bool dieFast): verbose(verbose), dieFast(dieFast) {
-    printf("Unit test runner,\nauthor: <gyula.madarasz@gmail.com>");
+    printf("Unit test runner.\n");
 }
 
 Tester::~Tester() {
