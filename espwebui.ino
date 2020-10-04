@@ -4,30 +4,7 @@
 #include "LinkedList.h"
 #include "ArduinoJson.h"
 #include <stdlib.h>
-
-char* lltoa(char* buff, long long value, int base = 10) {
-    // check that the base if valid
-    if (base < 2 || base > 36) { *buff = '\0'; return buff; }
-
-    char* ptr = buff, *ptr1 = buff, tmp_char;
-    int tmp_value;
-
-    do {
-        tmp_value = value;
-        value /= base;
-        *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz" [35 + (tmp_value - value * base)];
-    } while ( value );
-
-    // Apply negative sign
-    if (tmp_value < 0) *ptr++ = '-';
-    *ptr-- = '\0';
-    while(ptr1 < ptr) {
-        tmp_char = *ptr;
-        *ptr--= *ptr1;
-        *ptr1++ = tmp_char;
-    }
-    return buff;
-}
+#include "lltoa.h"
 
 
 typedef void (*cb_delay_callback_func_t)(void);
@@ -220,6 +197,9 @@ public:
     void setById(String id, String prop, String content, bool inAllDOMElement = true);
     void setOneById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement = true);
     void setExceptById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement = true);
+    void setByName(String name, String prop, String content, bool inAllDOMElement = true);
+    void setOneByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
+    void setExceptByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
 };
 
 ESPUIApp::ESPUIApp(uint16_t port, const char* wsuri, cb_delay_callback_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): whileConnectingLoop(whileConnectingLoop), ioStream(ioStream), eeprom(eeprom) {
@@ -537,6 +517,18 @@ void ESPUIApp::setExceptById(ESPUIConnection* conn, String id, String prop, Stri
     set("#" + id, prop, content, inAllDOMElement);
 }
 
+void ESPUIApp::setByName(String name, String prop, String content, bool inAllDOMElement) {
+    set("name=[\"" + name + "\"]", prop, content, inAllDOMElement);
+}
+
+void ESPUIApp::setOneByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement) {
+    set("name=[\"" + name + "\"]", prop, content, inAllDOMElement);
+}
+
+void ESPUIApp::setExceptByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement) {
+    set("name=[\"" + name + "\"]", prop, content, inAllDOMElement);
+}
+
 
 
 // ---------------
@@ -564,6 +556,17 @@ void setup()
         ESP.restart();
     }
 
+    const char* attribute_html = R"HTML(
+        {{ name }}="{{ value }}"
+    )HTML";
+
+    const char* tag_html = R"HTML(
+        <{{ tag }}{{ attributes }} />
+    )HTML";
+
+    const char* tag_empty_html = R"HTML(
+        <{{ tag }}{{ attributes }}></{{ tag }}>
+    )HTML";
 
     const char* header_html = R"HTML(
         <h1 id="{{ id }}" class="{{ class }}">{{ text }}</h1>
@@ -574,13 +577,11 @@ void setup()
     )HTML";
 
     const char* input_html = R"HTML(
-        <input id="{{ id }}" name="{{ name }}" class="{{ class }}" type="{{ type }}" value="{{ value }}" placeholder="{{ placeholder }}" onchange="{{ onchange }}">
+        <input id="{{ id }}" name="{{ name }}" class="{{ class }}" type="{{ type }}" value="{{ value }}" {{ checked }} placeholder="{{ placeholder }}" onchange="{{ onchange }}">
     )HTML";
 
     const char* select_html = R"HTML(
-        <select id="{{ id }}" name="{{ name }}" class="{{ class }}" {{ multiple } onchange="{{ onchange }}">
-            {{ options }}
-        </select>
+        <select id="{{ id }}" name="{{ name }}" class="{{ class }}" {{ multiple }} onchange="{{ onchange }}"></select>
     )HTML";
 
     const char* option_html = R"HTML(
@@ -602,6 +603,8 @@ void setup()
         <output id="{{ id }}" name="{{ name }}" class="{{ class }}">{{ text }}</output>
     )HTML";
 
+    // todo: canvas (and draw)
+
     ESPUIControl header1(header_html);
     header1.set("text", "My Test Header Line");
     app.add(header1);
@@ -617,7 +620,6 @@ void setup()
     app.add(button1);
 
     app.begin();
-
 }
 
 long last = 0;
@@ -631,3 +633,5 @@ void loop() {
         app.setById(label1id, "innerHTML", String(String(now) + "ms"));
     }
 }
+
+// TODO: tests
