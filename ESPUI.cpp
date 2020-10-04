@@ -9,3 +9,15 @@ ESPUIControlCounter::ESPUIControlCounter(const char* prefix): prefix(prefix) {
 String ESPUIControlCounter::getId() {
     return id;
 }
+
+// --------
+
+ESPUIConnection::ESPUIConnection(AsyncWebSocket* socket, AsyncWebSocketClient* client): socket(socket), client(client) {}
+
+AsyncWebSocket* ESPUIConnection::getSocket() {
+    return socket;
+}
+
+AsyncWebSocketClient* ESPUIConnection::getClient() {
+    return client;
+}

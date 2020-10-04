@@ -10,24 +10,6 @@
 #include "ESPUI.h"
 
 
-class ESPUIConnection {
-    AsyncWebSocket* socket;
-    AsyncWebSocketClient* client;
-public:
-    ESPUIConnection(AsyncWebSocket* socket, AsyncWebSocketClient* client);
-    AsyncWebSocket* getSocket();
-    AsyncWebSocketClient* getClient();
-};
-
-ESPUIConnection::ESPUIConnection(AsyncWebSocket* socket, AsyncWebSocketClient* client): socket(socket), client(client) {}
-
-AsyncWebSocket* ESPUIConnection::getSocket() {
-    return socket;
-}
-
-AsyncWebSocketClient* ESPUIConnection::getClient() {
-    return client;
-}
 
 #define CB_OK 0
 #define CB_ERR 1

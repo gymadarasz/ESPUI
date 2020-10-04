@@ -16,6 +16,16 @@ char lastErrorKey[100] = {0};
 int main() {
     Tester tester(true, true);
 
+    tester.run("Test for ESPUIConnection", [](Tester* tester) {
+        AsyncWebSocket* socket = new AsyncWebSocket();
+        AsyncWebSocketClient* client = new AsyncWebSocketClient();
+        ESPUIConnection conn(socket, client);
+        tester->assertEquals(__FL__, (void*)socket, (void*)conn.getSocket());
+        tester->assertEquals(__FL__, (void*)client, (void*)conn.getClient());
+        delete socket;
+        delete client;
+    });
+
     tester.run("Test for ESPUIControlCounter", [](Tester* tester) {
         String id;
 
