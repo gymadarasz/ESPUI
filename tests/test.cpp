@@ -1,13 +1,32 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <WString.h>
+#include "Tester.h"
+#include "../LinkedList.h"
 #include "../lltoa.h"
 #include "../cb_delay.h"
-#include "Tester.h"
+#include "../Template.h"
 
 int counter;
 
 int main() {
     Tester tester;
+
+    tester.run("Test for Template", [](Tester* tester) {
+        String tpl("abcd{{ value }}efgh");
+        Template::set(&tpl, "value", 1234);
+        tester->assertEquals(__FL__, "abcd1234efgh", tpl.c_str());
+    });
+
+    tester.run("Testing linked list", [](Tester* tester) {
+        XLinkedList<int> lst;
+        for (int i=0; i<1000; i++) lst.add(i);
+        for (int i=0; i<1000; i+=100) tester->assertEquals(__FL__, i, lst.get(i));
+        tester->assertEquals(__FL__, 1000, lst.size());
+        lst.clear();
+        tester->assertEquals(__FL__, 0, lst.size());
+        tester->assertTrue(__FL__, true, "It should run without memory leak (test is not correct thus have to check available memore before and after)");
+    });
 
     tester.run("Testing cb_delay", [](Tester* tester) {
         counter = 0;

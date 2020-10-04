@@ -17,6 +17,8 @@ public:
     Tester(bool verbose = true, bool dieFast = false);
     ~Tester();
     void run(const char* scenario, TTestFunction testfn);
+    void assertTrue(const char* file, int line, bool result, const char* expectation = "Given result should be true");
+    void assertFalse(const char* file, int line, bool result, const char* expectation = "Given result should be false");
     void assertNull(const char* file, int line, void* result, const char* expectation = "Given result should be null");
     void assertNotNull(const char* file, int line, void* result, const char* expectation = "Given result should not be null");
     void assertEquals(const char* file, int line, void* expected, void* result, const char* expectation = "Expected and given result should be same.");

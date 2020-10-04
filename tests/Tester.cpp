@@ -51,6 +51,14 @@ void Tester::run(const char* scenario, TTestFunction testfn) {
     testfn(this);
 }
 
+void Tester::assertTrue(const char* file, int line, bool result, const char* expectation) {
+    TESTER_CHECK(result);
+}
+
+void Tester::assertFalse(const char* file, int line, bool result, const char* expectation) {
+    TESTER_CHECK(!result);
+}
+
 void Tester::assertNull(const char* file, int line, void* result, const char* expectation) {
     TESTER_CHECK(nullptr == result);
 }

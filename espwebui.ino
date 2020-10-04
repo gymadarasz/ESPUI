@@ -1,62 +1,12 @@
-#include <ESPAsyncWebServer.h>
+#include <stdlib.h>
 #include <functional>
+#include <ESPAsyncWebServer.h>
 #include "EEPROM.h"
 #include "LinkedList.h"
 #include "ArduinoJson.h"
-#include <stdlib.h>
 #include "lltoa.h"
 #include "cb_delay.h"
-
-typedef void (*TTemplateErrorHandler)(const char* msg, const char* key);
-
-class Template {
-    static const String prefix;
-    static const String suffix;
-    static void defaultErrorHandler(const char* msg, const char* key);
-public:
-    static TTemplateErrorHandler errorHandler;
-    static bool set(String* tpl, const char* key, String value);
-    static bool set(String* tpl, const char* key, const char* value);
-    static bool set(String* tpl, const char* key, long long value);
-    static void check(String tpl);
-};
-
-const String Template::prefix = "{{ ";
-const String Template::suffix = " }}";
-
-TTemplateErrorHandler Template::errorHandler = Template::defaultErrorHandler;
-
-void Template::defaultErrorHandler(const char* msg, const char* key) {
-    Serial.printf(msg, key);
-}
-
-bool Template::set(String* tpl, const char* key, String value) {
-    String search = prefix + key + suffix;
-    if (tpl->indexOf(search) < 0) {
-        errorHandler("ERROR: Template key not found: '%s'\n", key);
-        return false;
-    }
-    tpl->replace(search, value);
-    return true;
-}
-
-bool Template::set(String* tpl, const char* key, const char* value) {
-    return set(tpl, key, String(value));
-}
-
-bool Template::set(String* tpl, const char* key, long long value) {
-    char buff[32];
-    return set(tpl, key, lltoa(buff, value));
-}
-
-void Template::check(String tpl) {
-    size_t prefixAt = tpl.indexOf(prefix);
-    size_t suffixAt = tpl.indexOf(suffix);
-    if (prefixAt >= 0 && suffixAt > prefixAt) {
-        String substr = tpl.substring(prefixAt, suffixAt + suffix.length());
-        errorHandler("ERROR: Template variable is unset: %s\n", substr.c_str());
-    }
-}
+#include "Template.h"
 
 class ESPUIControlCounter {
     static int next;
