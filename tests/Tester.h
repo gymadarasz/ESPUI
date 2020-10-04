@@ -21,6 +21,8 @@ public:
     void assertNotNull(const char* file, int line, void* result, const char* expectation = "Given result should not be null");
     void assertEquals(const char* file, int line, void* expected, void* result, const char* expectation = "Expected and given result should be same.");
     void assertNotEquals(const char* file, int line, void* expected, void* result, const char* expectation = "Expected and given result should not be same.");
+    void assertEquals(const char* file, int line, long long expected, long long result, const char* expectation = "Expected and given result should be same.");
+    void assertNotEquals(const char* file, int line, long long expected, long long result, const char* expectation = "Expected and given result should not be same.");
     void assertEquals(const char* file, int line, const char* expected, const char* result, const char* expectation = "Expected and given result strings should be same.");
     void assertNotEquals(const char* file, int line, const char* expected, const char* result, const char* expectation = "Expected and given result strings should not be same.");
 };

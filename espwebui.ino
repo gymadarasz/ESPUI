@@ -5,14 +5,7 @@
 #include "ArduinoJson.h"
 #include <stdlib.h>
 #include "lltoa.h"
-
-
-typedef void (*cb_delay_callback_func_t)(void);
-
-void cb_delay(long ms, cb_delay_callback_func_t callback = nullptr) {
-    ms += millis();
-    while(millis() < ms) if (callback) callback(); 
-}
+#include "cb_delay.h"
 
 typedef void (*TTemplateErrorHandler)(const char* msg, const char* key);
 

@@ -1,10 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../lltoa.h"
+#include "../cb_delay.h"
 #include "Tester.h"
+
+int counter;
 
 int main() {
     Tester tester;
+
+    tester.run("Testing cb_delay", [](Tester* tester) {
+        counter = 0;
+        cb_delay(1000, []() {
+            counter++;
+        });
+        tester->assertEquals(__FL__, 1000, counter);
+    });
 
     tester.run("Testing lltoa", [](Tester* tester) {
         char buff[100];

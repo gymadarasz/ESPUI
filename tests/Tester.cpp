@@ -26,6 +26,18 @@
     } \
 }
 
+#define TESTER_CHECK_NUM(cond) { \
+    if (cond) { \
+        success++; \
+        printf("."); \
+    } else { \
+        failed++; \
+        printf("\nTest failed at: %s:%d\nExpectaion: %s", file, line, expectation); \
+        printf("\nExpected:\n%lld\nGiven result:\n%lld", expected, result); \
+        if (dieFast) stat(); \
+    } \
+}
+
 Tester::Tester(bool verbose, bool dieFast): verbose(verbose), dieFast(dieFast) {
     printf("Unit test runner,\nauthor: <gyula.madarasz@gmail.com>");
 }
@@ -53,6 +65,14 @@ void Tester::assertEquals(const char* file, int line, void* expected, void* resu
 
 void Tester::assertNotEquals(const char* file, int line, void* expected, void* result, const char* expectation) {
     TESTER_CHECK(expected != result);
+}
+
+void Tester::assertEquals(const char* file, int line, long long expected, long long result, const char* expectation) {
+    TESTER_CHECK_NUM(expected == result);
+}
+
+void Tester::assertNotEquals(const char* file, int line, long long expected, long long result, const char* expectation) {
+    TESTER_CHECK_NUM(expected != result);
 }
 
 void Tester::assertEquals(const char* file, int line, const char* expected, const char* result, const char* expectation) {
