@@ -46,6 +46,8 @@ class Template {
 public:
     static TTemplateErrorHandler errorHandler;
     static bool set(String* tpl, const char* key, String value);
+    static bool set(String* tpl, const char* key, const char* value);
+    static bool set(String* tpl, const char* key, long long value);
     static void check(String tpl);
 };
 
@@ -66,6 +68,15 @@ bool Template::set(String* tpl, const char* key, String value) {
     }
     tpl->replace(search, value);
     return true;
+}
+
+bool Template::set(String* tpl, const char* key, const char* value) {
+    return set(tpl, key, String(value));
+}
+
+bool Template::set(String* tpl, const char* key, long long value) {
+    char buff[32];
+    return set(tpl, key, lltoa(buff, value));
 }
 
 void Template::check(String tpl) {
@@ -119,6 +130,8 @@ typedef int (*TESPUICallback)(void*);
 
 typedef void (*errfn_t)(const char* arg);
 
+static XLinkedList<TESPUICallback> ESPUICallbacks;
+
 class ESPUIControl: public ESPUIControlCounter {
 
     const char* tpl = R"TPL(
@@ -151,13 +164,19 @@ public:
         return Template::set(&html, key, value);
     }
 
-    bool set(const char* key, long long value) {
-        char buff[32];
-        return set(key, lltoa(buff, value));
-    }
-
     bool set(const char* key, TESPUICallback value) {
-        return set(key, (intptr_t)value);
+
+        String cbjs(R"JS(app.socket.send(JSON.stringify({
+            call: '{{ callback }}',
+            args: [event]
+        })))JS");
+
+        Template::set(&cbjs, "callback", (intptr_t)value);
+        Template::check(cbjs);
+
+        ESPUICallbacks.add(value);
+
+        return set(key, cbjs.c_str());
     }
 
     String toString() {
@@ -175,6 +194,7 @@ public:
 
 
 class ESPUIApp {
+
     Stream* ioStream;
     EEPROMClass* eeprom;
     AsyncWebServer* server;
@@ -426,9 +446,17 @@ void ESPUIApp::begin() {
                 } else {
                     ioStream->printf("call: %s\n", call);
                     TESPUICallback callfn = (TESPUICallback)atoll(call);
-                    if (CB_OK != callfn(&doc)) {
-                        ioStream->println("error");
+
+                    bool found = false;
+                    for (size_t i=0; i < ESPUICallbacks.size(); i++) {
+                        if (ESPUICallbacks.get(i) == callfn) {
+                            found = true;
+                            break;
+                        }
                     }
+
+                    if (!found) ioStream->println("ERROR: Unregistered callback");
+                    if (CB_OK != callfn(&doc)) ioStream->println("ERROR: Callback responded an error");
                 }
                 break;
 
@@ -544,28 +572,35 @@ void setup()
     const char* label_html = R"HTML(
         <label id="{{ id }}" class="{{ class }}">{{ text }}</label>
     )HTML";
-    
-    const char* button_html = R"HTML(
-        <button id="{{ id }}"  class="{{ class }}" onclick="app.socket.send(JSON.stringify({
-            call: '{{ callback }}',
-            args: [event]
-        }))">{{ text }}</button>
-    )HTML";
 
     const char* input_html = R"HTML(
-        <input id="{{ id }}" class="{{ class }}" type="{{ type }}" value="{{ value }}" placeholder="{{ placeholder }}">
+        <input id="{{ id }}" name="{{ name }}" class="{{ class }}" type="{{ type }}" value="{{ value }}" placeholder="{{ placeholder }}" onchange="{{ onchange }}">
     )HTML";
 
     const char* select_html = R"HTML(
-        <select id="{{ id }}" class="{{ class }}" {{ multiple }}>
+        <select id="{{ id }}" name="{{ name }}" class="{{ class }}" {{ multiple } onchange="{{ onchange }}">
             {{ options }}
         </select>
     )HTML";
 
     const char* option_html = R"HTML(
-        <option id="{{ id }}" class="{{ class }}" value="{{ value }}" {{ selected }}>{{ text }}</option>
+        <option id="{{ id }}" name="{{ name }}" class="{{ class }}" value="{{ value }}" {{ selected }}>{{ text }}</option>
     )HTML";
 
+    const char* textarea_html = R"HTML(
+        <textarea id="{{ id }}" name="{{ name }}" class="{{ class }}" rows="{{ rows }}" cols="{{ cols }}" onchange="{{ onchange }}">{{ text }}</textarea>
+    )HTML";
+    
+    const char* button_html = R"HTML(
+        <button id="{{ id }}" name="{{ name }}" class="{{ class }}" onclick="{{ onclick }}">{{ text }}</button>
+    )HTML";
+
+    // todo: fieldset and legend
+    // todo: datalist (autocomplete)
+
+    const char* output_html = R"HTML(
+        <output id="{{ id }}" name="{{ name }}" class="{{ class }}">{{ text }}</output>
+    )HTML";
 
     ESPUIControl header1(header_html);
     header1.set("text", "My Test Header Line");
@@ -577,7 +612,7 @@ void setup()
     label1id = label1.getId();
     
     ESPUIControl button1(button_html);
-    button1.set("callback", onButton1Click);
+    button1.set("onclick", onButton1Click);
     button1.set("text", "My Test Callback Button");
     app.add(button1);
 
