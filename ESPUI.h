@@ -2,8 +2,11 @@
 #define ESPUI_H
 
 #include <WString.h>
+#include <EEPROM.h>
+#include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include "LinkedList.h"
+#include "cb_delay.h"
 
 #define ESPUICALL_OK 0
 #define ESPUICALL_ERR 1
@@ -56,6 +59,25 @@ public:
 
 // --------
 
+class ESPUIWiFiApp {
+    String ssid;
+    String password;
+    void connect();
+protected:
+    WiFiClass* wifi;
+private:
+    cb_delay_func_t whileConnectingLoop;
+protected:
+    Stream* ioStream;
+private:
+    EEPROMClass* eeprom;
+public:
+    ESPUIWiFiApp(WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    void begin();
+    void establish();
+};
+
+// --------
 
 
 #endif // ESPUI_H

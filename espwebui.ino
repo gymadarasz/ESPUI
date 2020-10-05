@@ -9,27 +9,21 @@
 #include "Template.h"
 #include "ESPUI.h"
 
-class ESPUIApp {
 
-    Stream* ioStream;
-    EEPROMClass* eeprom;
+class ESPUIApp: public ESPUIWiFiApp {
+
     AsyncWebServer* server;
     AsyncWebSocket* ws;
     XLinkedList<ESPUIConnection*>* connects;
     String controls;
 
-    String ssid;
-    String password;
-    cb_delay_callback_func_t whileConnectingLoop;
-    void connect();
     String getSetterMessage(String selector, String prop, String content, bool inAllDOMElement = true);
 public:
-    ESPUIApp(uint16_t port = 80, const char* wsuri = "/ws", cb_delay_callback_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    ESPUIApp(uint16_t port = 80, const char* wsuri = "/ws", WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
     ~ESPUIApp();
     void add(String control, bool prepend = false);
     void add(ESPUIControl control, bool prepend = false);
     void begin();
-    void establish();
     void set(String selector, String prop, String content, bool inAllDOMElement = true);
     void setOne(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement = true);
     void setExcept(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement = true);
@@ -41,7 +35,8 @@ public:
     void setExceptByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
 };
 
-ESPUIApp::ESPUIApp(uint16_t port, const char* wsuri, cb_delay_callback_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): whileConnectingLoop(whileConnectingLoop), ioStream(ioStream), eeprom(eeprom) {
+ESPUIApp::ESPUIApp(uint16_t port, const char* wsuri, WiFiClass* wifi, cb_delay_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): 
+    ESPUIWiFiApp(wifi, whileConnectingLoop, ioStream, eeprom) {
     server = new AsyncWebServer(port);
     ws = new AsyncWebSocket(wsuri);
     connects = new XLinkedList<ESPUIConnection*>();
@@ -68,61 +63,7 @@ void ESPUIApp::add(ESPUIControl control, bool prepend) {
 
 void ESPUIApp::begin() {
 
-    const int wsec = 5;
-    const long idelay = 300;
-    const long wifiaddrStart = 0; // todo: config
-
-    long wifiaddr;
-
-    // ask if we need to set up wifi credentials
-
-    ioStream->print("Type 'y' to set up WiFi credentials (waiting for ");
-    ioStream->print(wsec);
-    ioStream->println(" seconds..)");
-    String inpstr = "";
-    for (int i=wsec; i>0; i--) {
-        ioStream->print(i);
-        ioStream->println("..");
-        cb_delay(1000, whileConnectingLoop);
-        if (ioStream->available()) {
-            inpstr = ioStream->readString();
-            inpstr.trim();
-            break;
-        }
-    }
-    if (inpstr == "y") {
-
-        // read new wifi credentials data
-        
-        ioStream->println("Type WiFi SSID:");
-        while (!ioStream->available()) cb_delay(idelay, whileConnectingLoop);
-        ssid = ioStream->readString();
-        ssid.trim();
-        ioStream->println("Type WiFi Password:");
-        while (!ioStream->available()) cb_delay(idelay, whileConnectingLoop);
-        password = ioStream->readString();
-        password.trim();
-
-        // store new wifi credentials
-
-        wifiaddr = wifiaddrStart;
-        eeprom->writeString(wifiaddr, ssid);
-        wifiaddr += ssid.length() + 1;
-        eeprom->writeString(wifiaddr, password);
-        eeprom->commit();
-
-        ioStream->println("Credentials are saved..");
-    }
-
-    // load wifi credentials
-
-    wifiaddr = wifiaddrStart;
-    ssid = eeprom->readString(wifiaddr);
-    wifiaddr += ssid.length() + 1;
-    password = eeprom->readString(wifiaddr);
-
-    // connecting to wifi
-    connect();
+    ESPUIWiFiApp::begin();
 
     server->on("/", [this](AsyncWebServerRequest *request) {
         String html = R"INDEX_HTML(
@@ -204,7 +145,7 @@ void ESPUIApp::begin() {
             </html>
         )INDEX_HTML";
 
-        Template::set(&html, "host", WiFi.localIP().toString()); // todo: bubble up WiFi as dependecy 
+        Template::set(&html, "host", wifi->localIP().toString()); // todo: bubble up WiFi as dependecy 
         Template::set(&html, "controls", controls);
         Template::check(html);
         
@@ -290,28 +231,6 @@ void ESPUIApp::begin() {
 
 }
 
-void ESPUIApp::establish() {
-    if (WiFi.status() != WL_CONNECTED) connect();
-}
-
-void ESPUIApp::connect() {
-    const size_t sSize = 100;
-    char ssids[sSize];
-    char passwords[sSize];
-    ssid.toCharArray(ssids, sSize);
-    password.toCharArray(passwords, sSize);
-    ioStream->println("Connecting to WiFi...");
-    WiFi.mode(WIFI_STA);
-    while(true) {
-        WiFi.begin(ssids, passwords);
-        if (WiFi.waitForConnectResult() == WL_CONNECTED) break;
-        ioStream->println("WiFi connection failed, retry..");
-        cb_delay(1000, whileConnectingLoop);
-    }
-
-    ioStream->println("WiFi connected.\nLocal IP:");
-    ioStream->println(WiFi.localIP().toString());
-}
 
 String ESPUIApp::getSetterMessage(String selector, String prop, String content, bool inAllDOMElement) {
     String msg("[\"{{ selector }}\", \"{{ prop }}\", \"{{ content }}\", {{ all }}]");
@@ -372,7 +291,7 @@ void ESPUIApp::setExceptByName(ESPUIConnection* conn, String name, String prop, 
 
 // ---------------
 
-ESPUIApp app(80, "/ws"/*, [app]() {
+ESPUIApp app(80, "/ws"/*, &WiFi, [app]() {
 
 }, &Serial, &EEPROM*/);
 

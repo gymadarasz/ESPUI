@@ -25,6 +25,10 @@ int main() {
         strcpy(lastErrorKey, key);
     });
 
+    tester.run("Test for ESPUIWiFiApp", [](Tester* tester) {
+        
+    });
+
     tester.run("Test for ESPUIControl", [](Tester* tester) {
         String restr;
 
