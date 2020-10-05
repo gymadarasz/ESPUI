@@ -70,7 +70,7 @@ void ESPUIApp::begin() {
 
     const int wsec = 5;
     const long idelay = 300;
-    const long wifiaddrStart = 0;
+    const long wifiaddrStart = 0; // todo: config
 
     long wifiaddr;
 
@@ -204,7 +204,7 @@ void ESPUIApp::begin() {
             </html>
         )INDEX_HTML";
 
-        Template::set(&html, "host", WiFi.localIP().toString());
+        Template::set(&html, "host", WiFi.localIP().toString()); // todo: bubble up WiFi as dependecy 
         Template::set(&html, "controls", controls);
         Template::check(html);
         
@@ -217,7 +217,7 @@ void ESPUIApp::begin() {
 
     ws->onEvent([this](AsyncWebSocket *socket, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
 
-        StaticJsonDocument<2000> doc;
+        StaticJsonDocument<2000> doc; // todo: config
         DeserializationError error;
         ESPUIConnection* conn;
 
