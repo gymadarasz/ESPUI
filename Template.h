@@ -12,6 +12,7 @@ class Template {
     static TTemplateErrorHandler errorHandler;
 public:
     static void setErrorHandler(TTemplateErrorHandler handler); 
+    static bool has(String* tpl, const char* key);
     static bool set(String* tpl, const char* key, String value);
     static bool set(String* tpl, const char* key, const char* value);
     static bool set(String* tpl, const char* key, long long value);

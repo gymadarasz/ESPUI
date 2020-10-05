@@ -13,8 +13,98 @@ int counter;
 char lastErrorMsg[100] = {0};
 char lastErrorKey[100] = {0};
 
+int testCallback(void* arg) {
+    return ESPUICALL_OK;
+}
+
 int main() {
-    Tester tester(true, true);
+    Tester tester(true, false);
+
+    Template::setErrorHandler([](const char* msg, const char* key) {
+        strcpy(lastErrorMsg, msg);
+        strcpy(lastErrorKey, key);
+    });
+
+    tester.run("Test for ESPUIControl", [](Tester* tester) {
+        String restr;
+
+        strcpy(lastErrorMsg, "");
+        strcpy(lastErrorKey, "");
+
+        ESPUIControl ctrl1;
+        restr = ctrl1.toString();
+        tester->assertEquals(__FL__, R"({
+    html: `false`,
+    target: {
+        selector: 'body', 
+        all: true, 
+        prepend: false
+    },
+    script: false
+})", restr.c_str());
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+
+        ESPUIControl ctrl2("<foo id=\"{{ id }}\" name=\"{{ name }}\" class=\"{{ class }}\">bar</foo>", "#parent-elem", false, true, "() => { console.log('hello'); }", "this-class");
+        ctrl2.set("id", "this-id");
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+        
+
+        restr = ctrl2.toString();
+        tester->assertEquals(__FL__, R"({
+    html: `<foo id="this-id" name="this-id" class="this-class">bar</foo>`,
+    target: {
+        selector: '#parent-elem', 
+        all: false, 
+        prepend: true
+    },
+    script: () => { console.log('hello'); }
+})", restr.c_str());
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+
+
+        ESPUIControl ctrl3("<foo id=\"{{ id }}\" name=\"{{ name }}\" class=\"{{ class }}\">bar1</foo>", "#parent-elem", false, true, "() => { console.log('hello'); }", "this-class");
+        ctrl3.set("id", "this-id");
+        ctrl3.set("name", "this-name");
+        restr = ctrl3.toString();
+        tester->assertEquals(__FL__, R"({
+    html: `<foo id="this-id" name="this-name" class="this-class">bar1</foo>`,
+    target: {
+        selector: '#parent-elem', 
+        all: false, 
+        prepend: true
+    },
+    script: () => { console.log('hello'); }
+})", restr.c_str());
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+
+
+        ESPUIControl ctrl4("<foo id=\"{{ id }}\" name=\"{{ name }}\" class=\"{{ class }}\" onclick=\"{{ onclick }}\">bar1</foo>", "#parent-elem", false, true, "() => { console.log('hello'); }", "this-class");
+        ctrl4.set("id", "this-id");
+        ctrl4.set("name", "this-name");
+        ctrl4.set("onclick", testCallback);
+        restr = ctrl4.toString();
+        String expected(R"OUTPUT({
+    html: `<foo id="this-id" name="this-name" class="this-class" onclick="app.socket.send(JSON.stringify({
+        call: '{{ callback }}',
+        args: [event]
+    }))">bar1</foo>`,
+    target: {
+        selector: '#parent-elem', 
+        all: false, 
+        prepend: true
+    },
+    script: () => { console.log('hello'); }
+})OUTPUT");
+        Template::set(&expected, "callback", (long long)testCallback);
+        tester->assertEquals(__FL__, expected.c_str(), restr.c_str());
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+        tester->assertEquals(__FL__, "", lastErrorKey);
+
+    });
 
     tester.run("Test for ESPUIConnection", [](Tester* tester) {
         AsyncWebSocket* socket = new AsyncWebSocket();
@@ -29,27 +119,25 @@ int main() {
     tester.run("Test for ESPUIControlCounter", [](Tester* tester) {
         String id;
 
+        ESPUIControlCounter counterStart("");
+        int first = atoi(counterStart.getId().c_str()); 
+
         ESPUIControlCounter counterA("testprefixA-");
         id = counterA.getId();
-        tester->assertEquals(__FL__, "testprefixA-1", id.c_str());
+        tester->assertEquals(__FL__, ("testprefixA-" + String(first+1)).c_str(), id.c_str());
 
         ESPUIControlCounter counterB("testprefixB-");
         id = counterB.getId();
-        tester->assertEquals(__FL__, "testprefixB-2", id.c_str());
+        tester->assertEquals(__FL__, ("testprefixB-" + String(first+2)).c_str(), id.c_str());
 
         ESPUIControlCounter counterC("testprefixC-");
         id = counterC.getId();
-        tester->assertEquals(__FL__, "testprefixC-3", id.c_str());
+        tester->assertEquals(__FL__, ("testprefixC-" + String(first+3)).c_str(), id.c_str());
     });
 
     tester.run("Test for Template", [](Tester* tester) {
         String tpl;
         bool result;
-
-        Template::setErrorHandler([](const char* msg, const char* key) {
-            strcpy(lastErrorMsg, msg);
-            strcpy(lastErrorKey, key);
-        });
 
         strcpy(lastErrorMsg, "");
         strcpy(lastErrorKey, "");

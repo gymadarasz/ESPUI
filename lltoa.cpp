@@ -1,9 +1,10 @@
+#include <stdio.h>
 char* lltoa(char* buff, long long value, int base) {
     // check that the base if valid
     if (base < 2 || base > 36) { *buff = '\0'; return buff; }
 
     char* ptr = buff, *ptr1 = buff, tmp_char;
-    int tmp_value;
+    long long tmp_value;
 
     do {
         tmp_value = value;

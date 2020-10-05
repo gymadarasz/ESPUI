@@ -17,12 +17,17 @@ void Template::setErrorHandler(TTemplateErrorHandler handler) {
     errorHandler = handler;
 }
 
-bool Template::set(String* tpl, const char* key, String value) {
+bool Template::has(String* tpl, const char* key) {
     String search = prefix + key + suffix;
-    if (tpl->indexOf(search) < 0) {
+    return tpl->indexOf(search) >= 0;
+}
+
+bool Template::set(String* tpl, const char* key, String value) {
+    if (!has(tpl, key)) {
         errorHandler("ERROR: Template key not found: '%s'\n", key);
         return false;
     }
+    String search = prefix + key + suffix;
     tpl->replace(search, value);
     return true;
 }

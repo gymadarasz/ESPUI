@@ -21,7 +21,7 @@
     } else { \
         failed++; \
         printf("\nTest failed at: %s:%d\nExpectaion: %s", file, line, expectation); \
-        printf("\nExpected:\n%s\nGiven result:\n%s", expected, result); \
+        printf("\nExpected:\n\"%s\"\nGiven result:\n\"%s\"", expected, result); \
         if (dieFast) stat(); \
     } \
 }

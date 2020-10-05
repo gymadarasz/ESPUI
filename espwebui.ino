@@ -9,78 +9,6 @@
 #include "Template.h"
 #include "ESPUI.h"
 
-
-
-#define CB_OK 0
-#define CB_ERR 1
-
-typedef int (*TESPUICallback)(void*);
-
-typedef void (*errfn_t)(const char* arg);
-
-static XLinkedList<TESPUICallback> ESPUICallbacks;
-
-class ESPUIControl: public ESPUIControlCounter {
-
-    const char* tpl = R"TPL(
-        {
-            html: `{{ html }}`,
-            target: {
-                selector: '{{ selector }}', 
-                all: {{ all }}, 
-                prepend: {{ prepend }}
-            },
-            script: {{ script }}
-        }
-    )TPL";
-
-    String html;
-    const char* selector;
-    bool all;
-    bool prepend;
-    const char* script;
-    const char* clazz;
-
-    String output;
-
-    
-public:
-    ESPUIControl(String html = "", const char* selector = "body", bool all = true, bool prepend = false, const char* script = NULL, const char* clazz = ""):
-        ESPUIControlCounter(), html(html), selector(selector), all(all), prepend(prepend), script(script), clazz(clazz) {}
-
-    bool set(const char* key, const char* value) {
-        return Template::set(&html, key, value);
-    }
-
-    bool set(const char* key, TESPUICallback value) {
-
-        String cbjs(R"JS(app.socket.send(JSON.stringify({
-            call: '{{ callback }}',
-            args: [event]
-        })))JS");
-
-        Template::set(&cbjs, "callback", (intptr_t)value);
-        Template::check(cbjs);
-
-        ESPUICallbacks.add(value);
-
-        return set(key, cbjs.c_str());
-    }
-
-    String toString() {
-        output = tpl;
-        Template::set(&output, "html", html.length() ? html : "false");
-        Template::set(&output, "selector", selector ? selector : "false");
-        Template::set(&output, "all", all ? "true" : "false");
-        Template::set(&output, "prepend", prepend ? "true" : "false");
-        Template::set(&output, "script", script ? script : "false");
-        Template::set(&output, "id", getId());
-        Template::set(&output, "class", clazz);
-        return output;
-    }
-};
-
-
 class ESPUIApp {
 
     Stream* ioStream;
@@ -347,7 +275,7 @@ void ESPUIApp::begin() {
                     }
 
                     if (!found) ioStream->println("ERROR: Unregistered callback");
-                    if (CB_OK != callfn(&doc)) ioStream->println("ERROR: Callback responded an error");
+                    if (ESPUICALL_OK != callfn(&doc)) ioStream->println("ERROR: Callback responded an error");
                 }
                 break;
 
@@ -450,7 +378,7 @@ ESPUIApp app(80, "/ws"/*, [app]() {
 
 int onButton1Click(void* args) {
     Serial.println("CLICKED!");
-    return CB_OK;
+    return ESPUICALL_OK;
 }
 
 String label1id;
