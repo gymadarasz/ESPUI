@@ -7,7 +7,8 @@
 #define TESTER_CHECK(cond) { \
     if (cond) { \
         success++; \
-        printf("."); \
+        if (verbose) printf("Assertation at %s:%d: %s [OK]\n", file, line, expectation); \
+        else printf("."); \
     } else { \
         failed++; \
         printf("\nTest failed at: %s:%d\nExpectaion: %s", file, line, expectation); \
@@ -18,7 +19,8 @@
 #define TESTER_CHECK_STR(cond, expected, result) { \
     if (cond) { \
         success++; \
-        printf("."); \
+        if (verbose) printf("Assertation at %s:%d: %s [OK]\n", file, line, expectation); \
+        else printf("."); \
     } else { \
         failed++; \
         printf("\nTest failed at: %s:%d\nExpectaion: %s", file, line, expectation); \
@@ -30,7 +32,8 @@
 #define TESTER_CHECK_NUM(cond, expected, result) { \
     if (cond) { \
         success++; \
-        printf("."); \
+        if (verbose) printf("Assertation at %s:%d: %s [OK]\n", file, line, expectation); \
+        else printf("."); \
     } else { \
         failed++; \
         printf("\nTest failed at: %s:%d\nExpectaion: %s", file, line, expectation); \

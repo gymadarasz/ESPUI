@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <AsyncWebSocket.h>
 #include <AsyncWebSynchronization.h>
+#include "ArduinoJson.h"
 #include "Tester.h"
 #include "../src/LinkedList.h"
 #include "../src/lltoa.h"
@@ -225,14 +226,14 @@ int main() {
         strcpy(lastErrorKey, key);
     });
 
-    tester.run("Testing ESPUIApp::add", [](Tester* tester) {
+    tester.run("Testing ESPUIApp::add and ESPUIApp::getSetterMessage", [](Tester* tester) {
         setupMocks();
         ESPUIControl ctrl1("<button id=\"{{ id }}\">Click me!</button>");
         ESPUIControl ctrl2("<button id=\"{{ id }}\">Click me!</button>");
         ESPUIControl ctrl3("<button id=\"{{ id }}\">Click me!</button>");
         ESPUIApp app;
         app.add(ctrl1);
-        app.add(ctrl2);
+        app.add(ctrl2.toString());
         app.add(ctrl3, true);
         app.begin();
         String html = app.getHtml();
@@ -240,6 +241,24 @@ int main() {
         tester->assertContains(__FL__, needle.c_str(), html.c_str());
         tester->assertEquals(__FL__, "", lastErrorKey);
         tester->assertEquals(__FL__, "", lastErrorMsg);
+
+
+        StaticJsonDocument<2000> doc;
+        String res = app.getSetterMessage("testselector", "testprop", "testcontent", true);
+        DeserializationError error = deserializeJson(doc, res.c_str());
+        tester->assertFalse(__FL__, error);
+        tester->assertEquals(__FL__, "testselector", doc[0]);
+        tester->assertEquals(__FL__, "testprop", doc[1]);
+        tester->assertEquals(__FL__, "testcontent", doc[2]);
+        tester->assertEquals(__FL__, true, doc[3]);
+
+        res = app.getSetterMessage("testselector", "testprop", "testcontent", false);
+        error = deserializeJson(doc, res.c_str());
+        tester->assertFalse(__FL__, error);
+        tester->assertEquals(__FL__, "testselector", doc[0]);
+        tester->assertEquals(__FL__, "testprop", doc[1]);
+        tester->assertEquals(__FL__, "testcontent", doc[2]);
+        tester->assertEquals(__FL__, false, doc[3]);
     });
 
     tester.run("Test for ESPUIWiFiApp with setup", [](Tester* tester) {
