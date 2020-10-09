@@ -81,5 +81,32 @@ public:
 
 // --------
 
+class ESPUIApp: public ESPUIWiFiApp {
+
+    AsyncWebServer* server;
+    AsyncWebSocket* ws;
+    XLinkedList<ESPUIConnection*> connects;
+    String controls;
+
+    String getSetterMessage(String selector, String prop, String content, bool inAllDOMElement = true);
+public:
+    ESPUIApp(uint16_t port = 80, const char* wsuri = "/ws", WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    ~ESPUIApp();
+    void add(String control, bool prepend = false);
+    void add(ESPUIControl control, bool prepend = false);
+    void begin();
+    void set(String selector, String prop, String content, bool inAllDOMElement = true);
+    void setOne(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement = true);
+    void setExcept(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement = true);
+    void setById(String id, String prop, String content, bool inAllDOMElement = true);
+    void setOneById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement = true);
+    void setExceptById(ESPUIConnection* conn, String id, String prop, String content, bool inAllDOMElement = true);
+    void setByName(String name, String prop, String content, bool inAllDOMElement = true);
+    void setOneByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
+    void setExceptByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
+};
+
+// --------
+
 
 #endif // ESPUI_H
