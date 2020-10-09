@@ -24,6 +24,7 @@
 #include <Arduino.h>
 #include "WString.h"
 #include "stdlib_noniso.h"
+#include "dtostrf.c"
 
 /*********************************************/
 /*  Constructors                             */

@@ -2,12 +2,12 @@
 #include <functional>
 #include <ESPAsyncWebServer.h>
 #include "EEPROM.h"
-#include "LinkedList.h"
 #include "ArduinoJson.h"
-#include "lltoa.h"
-#include "cb_delay.h"
-#include "Template.h"
-#include "ESPUI.h"
+#include "src/LinkedList.h"
+#include "src/lltoa.h"
+#include "src/cb_delay.h"
+#include "src/Template.h"
+#include "src/ESPUI.h"
 
 
 class ESPUIApp: public ESPUIWiFiApp {

@@ -32,6 +32,8 @@ extern "C" {
 #include <inttypes.h>
 #include <string.h>
 #include <math.h>
+#include "sdkconfig.h"
+#include "esp_system.h"
 
 #ifndef F_CPU
 #define F_CPU (CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ * 1000000U)
@@ -45,6 +47,22 @@ void yield(void);
 #define ESP_REG(addr) *((volatile uint32_t *)(addr))
 #define NOP() asm volatile ("nop")
 
+#include "esp32-hal-log.h"
+#include "esp32-hal-matrix.h"
+#include "esp32-hal-uart.h"
+#include "esp32-hal-gpio.h"
+#include "esp32-hal-touch.h"
+#include "esp32-hal-dac.h"
+#include "esp32-hal-adc.h"
+#include "esp32-hal-spi.h"
+#include "esp32-hal-i2c.h"
+#include "esp32-hal-ledc.h"
+#include "esp32-hal-rmt.h"
+#include "esp32-hal-sigmadelta.h"
+#include "esp32-hal-timer.h"
+#include "esp32-hal-bt.h"
+#include "esp32-hal-psram.h"
+#include "esp32-hal-cpu.h"
 
 #ifndef BOARD_HAS_PSRAM
 #ifdef CONFIG_SPIRAM_SUPPORT
@@ -74,10 +92,16 @@ void disableCore1WDT();
 
 //if xCoreID < 0 or CPU is unicore, it will use xTaskCreate, else xTaskCreatePinnedToCore
 //allows to easily handle all possible situations without repetitive code
+BaseType_t xTaskCreateUniversal( TaskFunction_t pxTaskCode,
+                        const char * const pcName,
+                        const uint32_t usStackDepth,
+                        void * const pvParameters,
+                        UBaseType_t uxPriority,
+                        TaskHandle_t * const pxCreatedTask,
+                        const BaseType_t xCoreID );
 
-
-unsigned long micros();
-
+unsigned long long micros();
+unsigned long long millis();
 void delay(uint32_t);
 void delayMicroseconds(uint32_t us);
 

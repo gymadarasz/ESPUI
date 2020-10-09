@@ -1,9 +1,11 @@
+#include <iostream>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
 
-#include <Arduino.h>
+#include "pins_arduino.h"
 #include "HardwareSerial.h"
 
 #ifndef RX1
@@ -28,12 +30,16 @@ HardwareSerial Serial1(1);
 HardwareSerial Serial2(2);
 #endif
 
-HardwareSerial::HardwareSerial(int uart_nr) : _uart_nr(uart_nr) {}
+HardwareSerial::HardwareSerial(int uart_nr) : _uart_nr(uart_nr), _uart(NULL) {}
 
 void HardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert, unsigned long timeout_ms)
 {
     if(0 > _uart_nr || _uart_nr > 2) {
+        // log_e("Serial number is invalid, please use 0, 1 or 2");
         return;
+    }
+    if(_uart) {
+        end();
     }
     if(_uart_nr == 0 && rxPin < 0 && txPin < 0) {
         rxPin = 3;
@@ -48,81 +54,124 @@ void HardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, in
         txPin = TX2;
     }
 
+    // _uart = uartBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, 256, invert);
+
     if(!baud) {
+        // uartStartDetectBaudrate(_uart);
+        // time_t startMillis = millis();
         unsigned long detectedBaudRate = 0;
+        // while(millis() - startMillis < timeout_ms && !(detectedBaudRate = uartDetectBaudrate(_uart))) {
+        //     yield();
+        // }
 
         end();
 
         if(detectedBaudRate) {
             delay(100); // Give some time...
+            // _uart = uartBegin(_uart_nr, detectedBaudRate, config, rxPin, txPin, 256, invert);
+        } else {
+            // log_e("Could not detect baudrate. Serial data at the port must be present within the timeout for detection to be possible");
+            _uart = NULL;
         }
     }
 }
 
 void HardwareSerial::updateBaudRate(unsigned long baud)
 {
-    
+	// uartSetBaudRate(_uart, baud);
 }
 
 void HardwareSerial::end()
 {
-    
+    // if(uartGetDebug() == _uart_nr) {
+    //     uartSetDebug(0);
+    // }
+    // uartEnd(_uart);
+    _uart = 0;
 }
 
 size_t HardwareSerial::setRxBufferSize(size_t new_size) {
-    return 0;
+    return 0; // uartResizeRxBuffer(_uart, new_size);
 }
 
 void HardwareSerial::setDebugOutput(bool en)
 {
-
+    if(_uart == 0) {
+        return;
+    }
+    if(en) {
+        // uartSetDebug(_uart);
+    } else {
+        // if(uartGetDebug() == _uart_nr) {
+        //     uartSetDebug(0);
+        // }
+    }
 }
 
 int HardwareSerial::available(void)
 {
-    return 0;
+    int ret = availables[availableNext];
+    availableNext++;
+    if (availableNext >= availableMax) availableNext = 0;
+    return ret; // uartAvailable(_uart);
 }
 int HardwareSerial::availableForWrite(void)
 {
-    return 0;
+    return 0; // uartAvailableForWrite(_uart);
 }
 
 int HardwareSerial::peek(void)
 {
-    if (available()) {
-        
-    }
+    // if (available()) {
+    //     return uartPeek(_uart);
+    // }
     return -1;
 }
 
 int HardwareSerial::read(void)
 {
-    if(available()) {
-        
+    // if(available()) {
+    //     return uartRead(_uart);
+    // }
+    
+    const char* input = inputs[inputNext].c_str();
+    int ret = input[inputNextChar];
+    if (echo) std::cout << (ret ? (char)ret : '\n');
+    inputNextChar++;
+    if (!ret) {
+        inputNextChar = 0;
+        inputNext++;
+        if (inputNext >= inputMax) inputNext = 0;
+        delay(getTimeout()+1);
+        return -1;
     }
-    return -1;
+    return ret;
 }
 
 void HardwareSerial::flush()
 {
-    
+    // uartFlush(_uart);
 }
 
 size_t HardwareSerial::write(uint8_t c)
 {
-    
+    // uartWrite(_uart, c);
+    output += (char)c;
+    if (verbose) std::cout << (char)c;
     return 1;
 }
 
 size_t HardwareSerial::write(const uint8_t *buffer, size_t size)
 {
-    
+    // uartWriteBuf(_uart, buffer, size);
+    size_t ret = 0;
+    for (size_t i=0; i < size; i++) if (write(buffer[i])) ret++; else break;
     return size;
 }
 uint32_t  HardwareSerial::baudRate()
 
 {
-    return 0;    
+	return 0; // uartGetBaudRate(_uart);
 }
 HardwareSerial::operator bool() const
 {

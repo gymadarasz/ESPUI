@@ -48,20 +48,36 @@
 #include <inttypes.h>
 
 #include "Stream.h"
+#include "esp32-hal.h"
 
 class HardwareSerial: public Stream
 {
 public:
     HardwareSerial(int uart_nr);
 
-    void begin(unsigned long baud, uint32_t config=0, int8_t rxPin=-1, int8_t txPin=-1, bool invert=false, unsigned long timeout_ms = 20000UL);
+    void begin(unsigned long baud, uint32_t config=SERIAL_8N1, int8_t rxPin=-1, int8_t txPin=-1, bool invert=false, unsigned long timeout_ms = 20000UL);
     void end();
     void updateBaudRate(unsigned long baud);
+
+    int availables[100] = {0};
+    int availableNext = 0;
+    int availableMax = 0;
     int available(void);
+
     int availableForWrite(void);
     int peek(void);
+
+    String inputs[100];
+    int inputNext = 0;
+    int inputNextChar = 0;
+    int inputMax = 0;
     int read(void);
+
     void flush(void);
+
+    bool verbose = false;
+    bool echo = false;
+    String output = "";
     size_t write(uint8_t);
     size_t write(const uint8_t *buffer, size_t size);
 
@@ -93,6 +109,7 @@ public:
 
 protected:
     int _uart_nr;
+    uart_t* _uart;
 };
 
 #if !defined(NO_GLOBAL_INSTANCES) && !defined(NO_GLOBAL_SERIAL)
