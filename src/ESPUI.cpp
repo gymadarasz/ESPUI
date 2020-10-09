@@ -166,15 +166,32 @@ void ESPUIWiFiApp::connect() {
 
 // --------
 
+void ESPUIApp::_init(uint16_t port, const char* wsuri) {
+    if (!server) server = new AsyncWebServer(port ? port : ESPUIAPP_DEFAULT_PORT);
+    if (!ws) ws = new AsyncWebSocket(wsuri ? wsuri : ESPUIAPP_DEFAULT_WSURI);
+}
+
 ESPUIApp::ESPUIApp(uint16_t port, const char* wsuri, WiFiClass* wifi, cb_delay_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): 
     ESPUIWiFiApp(wifi, whileConnectingLoop, ioStream, eeprom) {
-    server = new AsyncWebServer(port);
-    ws = new AsyncWebSocket(wsuri);
+    _init(port, wsuri);
+}
+
+ESPUIApp::ESPUIApp(AsyncWebServer* server, const char* wsuri, WiFiClass* wifi, cb_delay_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): 
+    ESPUIWiFiApp(wifi, whileConnectingLoop, ioStream, eeprom), server(server) {
+    _init(0, wsuri);
+}
+
+ESPUIApp::ESPUIApp(AsyncWebSocket* ws, uint16_t port, WiFiClass* wifi, cb_delay_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): 
+    ESPUIWiFiApp(wifi, whileConnectingLoop, ioStream, eeprom), ws(ws) {
+    _init(port, nullptr);
+}
+
+ESPUIApp::ESPUIApp(AsyncWebServer* server, AsyncWebSocket* ws, WiFiClass* wifi, cb_delay_func_t whileConnectingLoop, Stream* ioStream, EEPROMClass* eeprom): 
+    ESPUIWiFiApp(wifi, whileConnectingLoop, ioStream, eeprom), server(server), ws(ws) {
+    _init(0, nullptr);
 }
 
 ESPUIApp::~ESPUIApp() {
-    delete server;
-    delete ws;
     while (connects.size()) delete connects.pop();
 }
 
@@ -190,95 +207,97 @@ void ESPUIApp::add(ESPUIControl control, bool prepend) {
     add(control.toString(), prepend);
 }
 
+String ESPUIApp::getHtml() {
+    String html = R"INDEX_HTML(<html>
+    <head>
+        <title>Hello World!</title>
+        <style></style>
+        <script>
+            'use strict';
+
+            class ESPUIAppClient {
+                constructor(controls) {
+                    this.controls = controls;
+
+                    this.socket = new WebSocket("ws://{{ host }}/ws");
+
+                    this.socket.onopen = (event) => {
+                        console.log('socket open', event);
+                        // this.socket.send(JSON.stringify({
+                        //     "event": "onSocketOpen",
+                        //     "arguments": [e]
+                        // }));
+                    };
+
+                    this.socket.onmessage = (event) => {
+                        console.log(`[message] Data received from server: ${event.data}`, event);
+                        let json = JSON.parse(event.data);
+                        this.set.apply(this, json);
+                    };
+
+                    this.socket.onclose = (event) => {
+                        if (event.wasClean) {
+                            console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                        } else {
+                            // e.g. server process killed or network down
+                            // event.code is usually 1006 in this case
+                            alert('[close] Connection died');
+                        }
+                    };
+
+                    this.socket.onerror = (error) => {
+                        alert(`[error] ${error.message}`);
+                    };
+                }
+
+                show() {
+                    this.controls.forEach((ctrl) => {
+                        if (ctrl.target && ctrl.target.selector && ctrl.html) {
+                            (ctrl.target.all ? 
+                                document.querySelectorAll(ctrl.target.selector) : 
+                                [document.querySelector(ctrl.target.selector)]
+                            ).forEach((elem) => {
+                                if (ctrl.target.prepend) {
+                                    elem.innerHTML = ctrl.html + elem.innerHTML;
+                                } else {
+                                    elem.innerHTML += ctrl.html;
+                                }
+                            });
+                        }
+                        if (typeof ctrl.script === 'function') {
+                            ctrl.script(this);
+                        }
+                    });
+                }
+
+                set(selector, prop, content, all = true) {
+                    (all ? document.querySelectorAll(selector) : document.querySelector(selector)).forEach((elem) => {
+                        elem[prop] = content;
+                    });
+                }
+
+            }
+
+            let app = new ESPUIAppClient([{{ controls }}]);
+            
+        </script>
+    </head>
+    <body onload="app.show()"></body>
+</html>)INDEX_HTML";
+
+    Template::set(&html, "host", wifi->localIP().toString());
+    Template::set(&html, "controls", controls);
+    Template::check(html);
+    return html;
+}
+
 void ESPUIApp::begin() {
 
     ESPUIWiFiApp::begin();
 
+    // TODO: "/" root path to config
     server->on("/", [this](AsyncWebServerRequest *request) {
-        String html = R"INDEX_HTML(
-            <html>
-                <head>
-                    <title>Hello World!</title>
-                    <style></style>
-                    <script>
-                        'use strict';
-
-                        class ESPUIAppClient {
-                            constructor(controls) {
-                                this.controls = controls;
-
-                                this.socket = new WebSocket("ws://{{ host }}/ws");
-
-                                this.socket.onopen = (event) => {
-                                    console.log('socket open', event);
-                                    // this.socket.send(JSON.stringify({
-                                    //     "event": "onSocketOpen",
-                                    //     "arguments": [e]
-                                    // }));
-                                };
-
-                                this.socket.onmessage = (event) => {
-                                    console.log(`[message] Data received from server: ${event.data}`, event);
-                                    let json = JSON.parse(event.data);
-                                    this.set.apply(this, json);
-                                };
-
-                                this.socket.onclose = (event) => {
-                                    if (event.wasClean) {
-                                        console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-                                    } else {
-                                        // e.g. server process killed or network down
-                                        // event.code is usually 1006 in this case
-                                        alert('[close] Connection died');
-                                    }
-                                };
-
-                                this.socket.onerror = (error) => {
-                                    alert(`[error] ${error.message}`);
-                                };
-                            }
-
-                            show() {
-                                this.controls.forEach((ctrl) => {
-                                    if (ctrl.target && ctrl.target.selector && ctrl.html) {
-                                        (ctrl.target.all ? 
-                                            document.querySelectorAll(ctrl.target.selector) : 
-                                            [document.querySelector(ctrl.target.selector)]
-                                        ).forEach((elem) => {
-                                            if (ctrl.target.prepend) {
-                                                elem.innerHTML = ctrl.html + elem.innerHTML;
-                                            } else {
-                                                elem.innerHTML += ctrl.html;
-                                            }
-                                        });
-                                    }
-                                    if (typeof ctrl.script === 'function') {
-                                        ctrl.script(this);
-                                    }
-                                });
-                            }
-
-                            set(selector, prop, content, all = true) {
-                                (all ? document.querySelectorAll(selector) : document.querySelector(selector)).forEach((elem) => {
-                                    elem[prop] = content;
-                                });
-                            }
-
-                        }
-
-                        let app = new ESPUIAppClient([{{ controls }}]);
-                        
-                    </script>
-                </head>
-                <body onload="app.show()"></body>
-            </html>
-        )INDEX_HTML";
-
-        Template::set(&html, "host", wifi->localIP().toString()); // todo: bubble up WiFi as dependecy 
-        Template::set(&html, "controls", controls);
-        Template::check(html);
-        
-        request->send(200, "text/html", html);
+        request->send(200, "text/html", getHtml());
     });
 
     server->onNotFound([](AsyncWebServerRequest *request) {

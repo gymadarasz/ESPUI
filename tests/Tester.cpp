@@ -1,3 +1,4 @@
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +15,7 @@
     } \
 }
 
-#define TESTER_CHECK_STR(cond) { \
+#define TESTER_CHECK_STR(cond, expected, result) { \
     if (cond) { \
         success++; \
         printf("."); \
@@ -26,7 +27,7 @@
     } \
 }
 
-#define TESTER_CHECK_NUM(cond) { \
+#define TESTER_CHECK_NUM(cond, expected, result) { \
     if (cond) { \
         success++; \
         printf("."); \
@@ -76,19 +77,26 @@ void Tester::assertNotEquals(const char* file, int line, void* expected, void* r
 }
 
 void Tester::assertEquals(const char* file, int line, long long expected, long long result, const char* expectation) {
-    TESTER_CHECK_NUM(expected == result);
+    TESTER_CHECK_NUM(expected == result, expected, result);
 }
 
 void Tester::assertNotEquals(const char* file, int line, long long expected, long long result, const char* expectation) {
-    TESTER_CHECK_NUM(expected != result);
+    TESTER_CHECK_NUM(expected != result, expected, result);
 }
 
 void Tester::assertEquals(const char* file, int line, const char* expected, const char* result, const char* expectation) {
-    TESTER_CHECK_STR(expected && result && !strcmp(expected, result));
+    TESTER_CHECK_STR(expected && result && !strcmp(expected, result), expected, result);
 }
 
 void Tester::assertNotEquals(const char* file, int line, const char* expected, const char* result, const char* expectation) {
-    TESTER_CHECK_STR(expected && result && strcmp(expected, result));
+    TESTER_CHECK_STR(expected && result && strcmp(expected, result), expected, result);
+}
+
+void Tester::assertContains(const char* file, int line, const char* needle, const char* haystack, const char* expectation) {
+    std::string n(needle ? needle : "");
+    std::string h(haystack ? haystack : "");
+    
+    TESTER_CHECK_STR(needle && haystack && h.find(n) != std::string::npos, needle, haystack);
 }
 
 void Tester::stat() {

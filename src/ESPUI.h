@@ -81,16 +81,27 @@ public:
 
 // --------
 
+#define ESPUIAPP_DEFAULT_PORT 80
+#define ESPUIAPP_DEFAULT_WSURI "/ws"
+
 class ESPUIApp: public ESPUIWiFiApp {
 
-    AsyncWebServer* server;
-    AsyncWebSocket* ws;
+    AsyncWebServer* server = nullptr;
+    AsyncWebSocket* ws = nullptr;
     XLinkedList<ESPUIConnection*> connects;
     String controls;
 
-    String getSetterMessage(String selector, String prop, String content, bool inAllDOMElement = true);
+    void _init(uint16_t port = ESPUIAPP_DEFAULT_PORT, const char* wsuri = ESPUIAPP_DEFAULT_WSURI);
+#ifdef UNIT_TESTING
 public:
-    ESPUIApp(uint16_t port = 80, const char* wsuri = "/ws", WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+#endif
+    String getSetterMessage(String selector, String prop, String content, bool inAllDOMElement = true);
+    String getHtml();
+public:
+    ESPUIApp(uint16_t port = ESPUIAPP_DEFAULT_PORT, const char* wsuri = ESPUIAPP_DEFAULT_WSURI, WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    ESPUIApp(AsyncWebServer* server, const char* wsuri = ESPUIAPP_DEFAULT_WSURI, WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    ESPUIApp(AsyncWebSocket* ws, uint16_t port = ESPUIAPP_DEFAULT_PORT, WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
+    ESPUIApp(AsyncWebServer* server, AsyncWebSocket* ws, WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
     ~ESPUIApp();
     void add(String control, bool prepend = false);
     void add(ESPUIControl control, bool prepend = false);

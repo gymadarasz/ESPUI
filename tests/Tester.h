@@ -1,6 +1,7 @@
 #ifndef TESTER_H
 #define TESTER_H
 
+#define UNIT_TESTING
 #define __FL__ __FILE__, __LINE__
 
 class Tester;
@@ -27,6 +28,7 @@ public:
     void assertNotEquals(const char* file, int line, long long expected, long long result, const char* expectation = "Expected and given result should not be same.");
     void assertEquals(const char* file, int line, const char* expected, const char* result, const char* expectation = "Expected and given result strings should be same.");
     void assertNotEquals(const char* file, int line, const char* expected, const char* result, const char* expectation = "Expected and given result strings should not be same.");
+    void assertContains(const char* file, int line, const char* needle, const char* haystack, const char* expectation = "Given result string should contains the expected string.");
 };
 
 #endif // TESTER_H

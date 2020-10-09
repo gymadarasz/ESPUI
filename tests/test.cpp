@@ -154,6 +154,68 @@ int testCallback(void* arg) {
     return ESPUICALL_OK;
 }
 
+#define TEST_WIFI_SSID "testwifissid"
+#define TEST_WIFI_PASSWORD "password1234"
+
+void setupMocks(String ssid = TEST_WIFI_SSID, String password = TEST_WIFI_PASSWORD) {
+
+    lastErrorMsg[0] = 0;
+    lastErrorKey[0] = 0;
+
+    counter = 0;  // cb_delay mock counter
+
+    // mock wifi EEPROM data
+    int EEPROM_addr = 0;
+    EEPROM.begin(1000);
+    EEPROM.writeString(EEPROM_addr, ssid);
+    EEPROM_addr += (strlen(ssid.c_str()) + 1);
+    EEPROM.writeString(EEPROM_addr, password);
+    EEPROM_addr += (strlen(password.c_str()) + 1);
+
+    Serial.verbose = true;
+    Serial.echo = true;
+
+    Serial.output = "";
+    Serial.inputNext = 0;
+    Serial.inputNextChar = 0;
+    Serial.availableNext = 0;
+    Serial.availableMax = 0;
+    Serial.availables[0] = 0;
+
+    WiFi.waitForConnectResults[0] = WL_CONNECT_FAILED;
+    WiFi.waitForConnectResults[1] = WL_CONNECT_FAILED;
+    WiFi.waitForConnectResults[2] = WL_CONNECTED;       // connection established at th 3th times (3th second)
+    WiFi.waitForConnectResultMax = 3;
+
+    IPAddress ip(192, 168, 1, 123);
+    WiFi.localIPs[0] = ip;
+    WiFi.localIPMax = 1;
+}
+
+void setupMocksWithSetup(String ssid = TEST_WIFI_SSID, String password = TEST_WIFI_PASSWORD) {
+    setupMocks(ssid, password);
+
+    Serial.availables[0] = 0;
+    Serial.availables[1] = 0;
+    Serial.availables[2] = 1;   // sending 'y' to serial port at 3th second
+    Serial.inputs[0] = "y";
+
+    Serial.availables[3] = 0;
+    Serial.availables[4] = 0;
+    Serial.availables[5] = 0;
+    Serial.availables[6] = ssid.length(); // 4 x ESPUIWIFIAPP_SETUP_INPUT_WAIT_MS ms later SSID sent
+    Serial.inputs[1] = ssid;
+    
+    Serial.availables[7] = 0;
+    Serial.availables[8] = 0;
+    Serial.availables[9] = 0;
+    Serial.availables[10] = 0;
+    Serial.availables[11] = password.length(); // 5 x ESPUIWIFIAPP_SETUP_INPUT_WAIT_MS ms later password sent
+    Serial.inputs[2] = password;
+    Serial.availableMax = 12;
+    Serial.inputMax = 3;
+}
+
 int main() {
     // env_init();
     Tester tester(true, false);
@@ -163,62 +225,25 @@ int main() {
         strcpy(lastErrorKey, key);
     });
 
+    tester.run("Testing ESPUIApp::add", [](Tester* tester) {
+        setupMocks();
+        ESPUIControl ctrl1("<button id=\"{{ id }}\">Click me!</button>");
+        ESPUIControl ctrl2("<button id=\"{{ id }}\">Click me!</button>");
+        ESPUIControl ctrl3("<button id=\"{{ id }}\">Click me!</button>");
+        ESPUIApp app;
+        app.add(ctrl1);
+        app.add(ctrl2);
+        app.add(ctrl3, true);
+        app.begin();
+        String html = app.getHtml();
+        String needle = ctrl3.toString() + "," + ctrl1.toString() + "," + ctrl2.toString();
+        tester->assertContains(__FL__, needle.c_str(), html.c_str());
+        tester->assertEquals(__FL__, "", lastErrorKey);
+        tester->assertEquals(__FL__, "", lastErrorMsg);
+    });
+
     tester.run("Test for ESPUIWiFiApp with setup", [](Tester* tester) {
-        String ssid = "testwifissid";
-        String password = "password1234";
-
-        // MockSerial serial;
-        // MockWifi wifi;
-        // MockEEPROM eeprom;
-
-        counter = 0;  // cb_delay mock counter
-
-        // mock wifi EEPROM data
-        // TODO: test scanario when stored data is worng (can not connect)
-        // TODO: test when setup done / user not set up wifi
-        int EEPROM_addr = 0;
-        EEPROM.begin(1000);
-        EEPROM.writeString(EEPROM_addr, ssid);
-        EEPROM_addr += (strlen(ssid.c_str()) + 1);
-        EEPROM.writeString(EEPROM_addr, password);
-        EEPROM_addr += (strlen(password.c_str()) + 1);
-
-        Serial.verbose = true;
-        Serial.echo = false;
-        Serial.output = "";
-        Serial.inputNext = 0;
-        Serial.inputNextChar = 0;
-        Serial.inputMax = 0;
-        Serial.availableNext = 0;
-        Serial.availableMax = 0;
-        Serial.availables[0] = 0;
-        Serial.availables[1] = 0;
-        Serial.availables[2] = 1;   // sending 'y' to serial port at 3th second
-        Serial.inputs[0] = "y";
-
-        Serial.availables[3] = 0;
-        Serial.availables[4] = 0;
-        Serial.availables[5] = 0;
-        Serial.availables[6] = ssid.length(); // 4 x ESPUIWIFIAPP_SETUP_INPUT_WAIT_MS ms later SSID sent
-        Serial.inputs[1] = ssid;
-        
-        Serial.availables[7] = 0;
-        Serial.availables[8] = 0;
-        Serial.availables[9] = 0;
-        Serial.availables[10] = 0;
-        Serial.availables[11] = password.length(); // 5 x ESPUIWIFIAPP_SETUP_INPUT_WAIT_MS ms later password sent
-        Serial.inputs[2] = password;
-        Serial.availableMax = 12;
-        Serial.inputMax = 3;
-        
-        WiFi.waitForConnectResults[0] = WL_CONNECT_FAILED;
-        WiFi.waitForConnectResults[1] = WL_CONNECT_FAILED;
-        WiFi.waitForConnectResults[2] = WL_CONNECTED;       // connection established at th 3th times (3th second)
-        WiFi.waitForConnectResultMax = 3;
-
-        IPAddress ip(192, 168, 1, 123);
-        WiFi.localIPs[0] = ip;
-        WiFi.localIPMax = 1;
+        setupMocksWithSetup();
 
         ESPUIWiFiApp app(&WiFi, [](){ counter++; }, &Serial, &EEPROM);
         app.begin();
@@ -228,34 +253,7 @@ int main() {
     });
 
     tester.run("Test for ESPUIWiFiApp without setup", [](Tester* tester) {
-        String ssid = "testwifissid";
-        String password = "password1234";
-
-        counter = 0;  // cb_delay mock counter
-
-        // mock wifi EEPROM data
-        int EEPROM_addr = 0;
-        EEPROM.begin(1000);
-        EEPROM.writeString(EEPROM_addr, ssid);
-        EEPROM_addr += (strlen(ssid.c_str()) + 1);
-        EEPROM.writeString(EEPROM_addr, password);
-        EEPROM_addr += (strlen(password.c_str()) + 1);
-
-        Serial.output = "";
-        Serial.inputNext = 0;
-        Serial.inputNextChar = 0;
-        Serial.availableNext = 0;
-        Serial.availableMax = 0;
-        Serial.availables[0] = 0;
-
-        WiFi.waitForConnectResults[0] = WL_CONNECT_FAILED;
-        WiFi.waitForConnectResults[1] = WL_CONNECT_FAILED;
-        WiFi.waitForConnectResults[2] = WL_CONNECTED;       // connection established at th 3th times (3th second)
-        WiFi.waitForConnectResultMax = 3;
-
-        IPAddress ip(192, 168, 1, 123);
-        WiFi.localIPs[0] = ip;
-        WiFi.localIPMax = 1;
+        setupMocks();
 
         ESPUIWiFiApp app(&WiFi, [](){ counter++; }, &Serial, &EEPROM);
         app.begin();
