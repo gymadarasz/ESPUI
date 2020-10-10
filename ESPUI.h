@@ -13,18 +13,20 @@
 #define ESPUIWIFIAPP_SETUP_WAIT_SEC 5
 #define ESPUIWIFIAPP_SETUP_INPUT_WAIT_MS 300
 
+// -----------
+
 typedef int (*TESPUICallback)(void*);
 
 static XLinkedList<TESPUICallback> ESPUICallbacks;
 
 // --------
 
-class ESPUIControlCounter {
+class ESPUICounter {
     static int next;
     const char* prefix;
     String id;
 public:  
-    ESPUIControlCounter(const char* prefix = "espuictrl");
+    ESPUICounter(const char* prefix = "espuictrl");
     String getId();
 };
 
@@ -41,22 +43,31 @@ public:
 
 // --------
 
-class ESPUIControl: public ESPUIControlCounter {
+class ESPUIControl: public ESPUICounter {
     static const char* tpl;
     String html;
     const char* selector;
     bool all;
     bool prepend;
-    const char* script;
+    String script;
     const char* clazz;
     String output;
     String _id = "";
     String name = "";
 public:
-    ESPUIControl(String html = "", const char* selector = "body", bool all = true, bool prepend = false, const char* script = NULL, const char* clazz = "");
+    ESPUIControl(String html = "", const char* selector = "body", bool all = true, bool prepend = false, String script = "", const char* clazz = "");
     bool set(const char* key, const char* value);
+    bool set(const char* key, String value);
+    bool set(const char* key, long long value);
     bool set(const char* key, TESPUICallback value);
     String toString();
+};
+
+// --------
+
+class ESPUIScript: public ESPUIControl {
+public:
+    ESPUIScript(String script): ESPUIControl("", "", false, false, script) {}
 };
 
 // --------
@@ -95,7 +106,9 @@ class ESPUIApp: public ESPUIWiFiApp {
 #ifdef UNIT_TESTING
 public:
 #endif
+    void sendExcept(ESPUIConnection* conn, String msg);
     String getSetterMessage(String selector, String prop, String content, bool inAllDOMElement = true);
+    String getCallerMessage(const char* clazz, const char* method, const char* args);
     String getHtml();
 public:
     ESPUIApp(uint16_t port = ESPUIAPP_DEFAULT_PORT, const char* wsuri = ESPUIAPP_DEFAULT_WSURI, WiFiClass* wifi = &WiFi, cb_delay_func_t whileConnectingLoop = NULL, Stream* ioStream = &Serial, EEPROMClass* eeprom = &EEPROM);
@@ -115,6 +128,9 @@ public:
     void setByName(String name, String prop, String content, bool inAllDOMElement = true);
     void setOneByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
     void setExceptByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement = true);
+    void call(const char* clazz, const char* method, const char* args);
+    void callOne(ESPUIConnection* conn, const char* clazz, const char* method, const char* args);
+    void callExcept(ESPUIConnection* conn, const char* clazz, const char* method, const char* args);
 };
 
 // --------

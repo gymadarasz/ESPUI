@@ -1,4 +1,6 @@
-#include "src/ESPUI.h"
+#include "ESPUI.h"
+#include "ctrls/basics.cpp";
+#include "ctrls/timer.cpp";
 
 
 // ---------------
@@ -10,7 +12,7 @@ int onButton1Click(void* args) {
     return ESPUICALL_OK;
 }
 
-String label1id;
+int countDown = 3;
 
 void setup()
 {
@@ -24,68 +26,37 @@ void setup()
         ESP.restart();
     }
 
-    const char* attribute_html = R"HTML(
-        {{ name }}="{{ value }}"
-    )HTML";
 
-    const char* tag_html = R"HTML(
-        <{{ tag }}{{ attributes }} />
-    )HTML";
-
-    const char* tag_empty_html = R"HTML(
-        <{{ tag }}{{ attributes }}></{{ tag }}>
-    )HTML";
-
-    const char* header_html = R"HTML(
-        <h1 id="{{ id }}" class="{{ class }}">{{ text }}</h1>
-    )HTML";
-
-    const char* label_html = R"HTML(
-        <label id="{{ id }}" class="{{ class }}">{{ text }}</label>
-    )HTML";
-
-    const char* input_html = R"HTML(
-        <input id="{{ id }}" name="{{ name }}" class="{{ class }}" type="{{ type }}" value="{{ value }}" {{ checked }} placeholder="{{ placeholder }}" onchange="{{ onchange }}">
-    )HTML";
-
-    const char* select_html = R"HTML(
-        <select id="{{ id }}" name="{{ name }}" class="{{ class }}" {{ multiple }} onchange="{{ onchange }}"></select>
-    )HTML";
-
-    const char* option_html = R"HTML(
-        <option id="{{ id }}" name="{{ name }}" class="{{ class }}" value="{{ value }}" {{ selected }}>{{ text }}</option>
-    )HTML";
-
-    const char* textarea_html = R"HTML(
-        <textarea id="{{ id }}" name="{{ name }}" class="{{ class }}" rows="{{ rows }}" cols="{{ cols }}" onchange="{{ onchange }}">{{ text }}</textarea>
-    )HTML";
-    
-    const char* button_html = R"HTML(
-        <button id="{{ id }}" name="{{ name }}" class="{{ class }}" onclick="{{ onclick }}">{{ text }}</button>
-    )HTML";
-
-    // todo: fieldset and legend
-    // todo: datalist (autocomplete)
-
-    const char* output_html = R"HTML(
-        <output id="{{ id }}" name="{{ name }}" class="{{ class }}">{{ text }}</output>
-    )HTML";
-
-    // todo: canvas (and draw)
-
-    ESPUIControl header1(header_html);
+    ESPUIControl header1(htmlCtrlHeader);
     header1.set("text", "My Test Header Line");
     app.add(header1);
     
-    ESPUIControl label1(label_html);
+    ESPUIControl label1(htmlCtrlLabel);
     label1.set("text", "My Test Label");
+    label1.set("name", "myLabel1");
     app.add(label1);
-    label1id = label1.getId();
     
-    ESPUIControl button1(button_html);
+    ESPUIControl button1(htmlCtrlButton);
     button1.set("onclick", onButton1Click);
     button1.set("text", "My Test Callback Button");
     app.add(button1);
+
+    ESPUIScript timerInit(jsCtrlTimerInit);
+    app.add(timerInit);
+
+    ESPUIScript timer1(jsCtrlTimer);
+    timer1.set("name", "myTimer1");
+    timer1.set("period", 1000);
+    timer1.set("onTick", [countDown](void* args) {
+        Serial.printf("Front end timer tick call back, stop timer after %d call back..\n", countDown);
+        countDown--;
+        if (!countDown) {
+            app.call("timers", "stop", "[\"myTimer1\"]");
+            countDown = 3;
+        }
+        return ESPUICALL_OK;
+    });
+    app.add(timer1);
 
     app.begin();
 }
@@ -95,10 +66,10 @@ void loop() {
     app.establish();
 
     long now = millis();
-    if (now-last > 1000) {
+    if (now-last > 300) {
         last = now;
 
-        app.setById(label1id, "innerHTML", String(String(now) + "ms"));
+        app.setByName("myLabel1", "innerHTML", String(String(now) + "ms"));
     }
 }
 

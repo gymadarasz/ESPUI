@@ -1,14 +1,17 @@
 #include "ESPUI.h"
 #include "Template.h"
 #include "ArduinoJson.h"
+#include "lltoa.h"
 
-int ESPUIControlCounter::next = 0;
+// --------
 
-ESPUIControlCounter::ESPUIControlCounter(const char* prefix): prefix(prefix) {
+int ESPUICounter::next = 0;
+
+ESPUICounter::ESPUICounter(const char* prefix): prefix(prefix) {
     id = prefix + String(++next);
 }
 
-String ESPUIControlCounter::getId() {
+String ESPUICounter::getId() {
     return id;
 }
 
@@ -36,15 +39,26 @@ const char* ESPUIControl::tpl = R"TPL({
     script: {{ script }}
 })TPL";
 
-ESPUIControl::ESPUIControl(String html, const char* selector, bool all, bool prepend, const char* script, const char* clazz):
-        ESPUIControlCounter(), html(html), selector(selector), all(all), prepend(prepend), script(script), clazz(clazz) {};
+ESPUIControl::ESPUIControl(String html, const char* selector, bool all, bool prepend, String script, const char* clazz):
+        ESPUICounter(), html(html), selector(selector), all(all), prepend(prepend), script(script), clazz(clazz) {};
 
 bool ESPUIControl::set(const char* key, const char* value) {
     if (!strcmp(key, "id")) {
         _id = value;
     }
-    bool ret = Template::set(&html, key, value);
+    bool ret = Template::set(&html, key, value) || Template::set(&script, key, value);
     return ret;
+}
+
+bool ESPUIControl::set(const char* key, String value) {
+    return set(key, value.c_str());
+}
+
+bool ESPUIControl::set(const char* key, long long value) {
+    char buff[40];
+    lltoa(buff, value, 10);
+    String valueAsString(buff);
+    return set(key, valueAsString.c_str());
 }
 
 bool ESPUIControl::set(const char* key, TESPUICallback value) {
@@ -68,7 +82,7 @@ String ESPUIControl::toString() {
     Template::set(&output, "selector", selector ? selector : "false");
     Template::set(&output, "all", all ? "true" : "false");
     Template::set(&output, "prepend", prepend ? "true" : "false");
-    Template::set(&output, "script", script ? script : "false");
+    Template::set(&output, "script", script.length() ? script : "false");
     if (html.length() && !_id.length()) Template::set(&output, "id", getId());
     if (Template::has(&output, "name")) Template::set(&output, "name", _id.length() ? _id : getId());
     if (Template::has(&output, "class") || strlen(clazz)) Template::set(&output, "class", clazz);
@@ -212,11 +226,15 @@ String ESPUIApp::getHtml() {
     <head>
         <title>Hello World!</title>
         <style></style>
+    </head>
+    <body onload="">
+
         <script>
             'use strict';
 
             class ESPUIAppClient {
                 constructor(controls) {
+                    this.calls = {};
                     this.controls = controls;
 
                     this.socket = new WebSocket("ws://{{ host }}/ws");
@@ -231,8 +249,15 @@ String ESPUIApp::getHtml() {
 
                     this.socket.onmessage = (event) => {
                         console.log(`[message] Data received from server: ${event.data}`, event);
-                        let json = JSON.parse(event.data);
-                        this.set.apply(this, json);
+                        let json;
+                        try {
+                            json = JSON.parse(event.data);
+                        } catch(e) {
+                            console.error(e, event);
+                            throw "JSON parse error";
+                        }
+                        if (json.set) this.set.apply(this, json.set);
+                        if (json.call) this[json.call.class][json.call.method].apply(this, json.call.args);
                     };
 
                     this.socket.onclose = (event) => {
@@ -279,10 +304,11 @@ String ESPUIApp::getHtml() {
             }
 
             let app = new ESPUIAppClient([{{ controls }}]);
+
+            app.show();
             
         </script>
-    </head>
-    <body onload="app.show()"></body>
+    </body>
 </html>)INDEX_HTML";
 
     Template::set(&html, "host", wifi->localIP().toString());
@@ -364,7 +390,10 @@ void ESPUIApp::begin() {
                     }
 
                     if (!found) ioStream->println("ERROR: Unregistered callback");
-                    if (ESPUICALL_OK != callfn(&doc)) ioStream->println("ERROR: Callback responded an error");
+                    if (ESPUICALL_OK != callfn(&doc)) {
+                        ioStream->println("ERROR: Callback responded an error");
+                        // todo: deal with errors nicely
+                    }
                 }
                 break;
 
@@ -379,9 +408,42 @@ void ESPUIApp::begin() {
 
 }
 
+void ESPUIApp::sendExcept(ESPUIConnection* conn, String msg) {
+    size_t size = connects.size();
+    AsyncWebSocketClient* cli = conn->getClient();
+    for (size_t i=0; i<size; i++) {
+        AsyncWebSocketClient* client = connects.get(i)->getClient();
+        if (cli->id() != client->id())
+            ws->text(client->id(), msg);
+    }
+}
+
+String ESPUIApp::getCallerMessage(const char* clazz, const char* method, const char* args) {
+    String msg("{\"call\":{\"class\":\"{{ class }}\",\"method\":\"{{ method }}\",\"args\":{{ args }}}}");
+    Template::set(&msg, "class", clazz);
+    Template::set(&msg, "method", method);
+    Template::set(&msg, "args", args);
+    Template::check(msg);
+    return msg;
+}
+
+void ESPUIApp::call(const char* clazz, const char* method, const char* args) {
+    String msg = getCallerMessage(clazz, method, args);
+    ws->textAll(msg);
+}
+
+void ESPUIApp::callOne(ESPUIConnection* conn, const char* clazz, const char* method, const char* args) {
+    String msg = getCallerMessage(clazz, method, args);
+    ws->text(conn->getClient()->id(), msg);
+}
+
+void ESPUIApp::callExcept(ESPUIConnection* conn, const char* clazz, const char* method, const char* args) {
+    String msg = getCallerMessage(clazz, method, args);
+    sendExcept(conn, msg);
+}
 
 String ESPUIApp::getSetterMessage(String selector, String prop, String content, bool inAllDOMElement) {
-    String msg("[\"{{ selector }}\", \"{{ prop }}\", \"{{ content }}\", {{ all }}]");
+    String msg("{\"set\": [\"{{ selector }}\", \"{{ prop }}\", \"{{ content }}\", {{ all }}]}");
     Template::set(&msg, "selector", selector);
     Template::set(&msg, "prop", prop);
     Template::set(&msg, "content", content);
@@ -402,13 +464,7 @@ void ESPUIApp::setOne(ESPUIConnection* conn, String selector, String prop, Strin
 
 void ESPUIApp::setExcept(ESPUIConnection* conn, String selector, String prop, String content, bool inAllDOMElement) {
     String msg = getSetterMessage(selector, prop, content, inAllDOMElement);
-    size_t size = connects.size();
-    AsyncWebSocketClient* cli = conn->getClient();
-    for (size_t i=0; i<size; i++) {
-        AsyncWebSocketClient* client = connects.get(i)->getClient();
-        if (cli->id() != client->id())
-            ws->text(client->id(), msg);
-    }
+    sendExcept(conn, msg);
 }
 
 void ESPUIApp::setById(String id, String prop, String content, bool inAllDOMElement) {
@@ -424,15 +480,15 @@ void ESPUIApp::setExceptById(ESPUIConnection* conn, String id, String prop, Stri
 }
 
 void ESPUIApp::setByName(String name, String prop, String content, bool inAllDOMElement) {
-    set("name=[\"" + name + "\"]", prop, content, inAllDOMElement);
+    set("[name=\\\"" + name + "\\\"]", prop, content, inAllDOMElement);
 }
 
 void ESPUIApp::setOneByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement) {
-    set("name=[\"" + name + "\"]", prop, content, inAllDOMElement);
+    set("[name=\\\"" + name + "\\\"]", prop, content, inAllDOMElement);
 }
 
 void ESPUIApp::setExceptByName(ESPUIConnection* conn, String name, String prop, String content, bool inAllDOMElement) {
-    set("name=[\"" + name + "\"]", prop, content, inAllDOMElement);
+    set("[name=\\\"" + name + "\\\"]", prop, content, inAllDOMElement);
 }
 
 // --------

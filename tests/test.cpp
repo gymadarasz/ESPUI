@@ -8,11 +8,11 @@
 #include <AsyncWebSynchronization.h>
 #include "ArduinoJson.h"
 #include "Tester.h"
-#include "../src/LinkedList.h"
-#include "../src/lltoa.h"
-#include "../src/cb_delay.h"
-#include "../src/Template.h"
-#include "../src/ESPUI.h"
+#include "../LinkedList.h"
+#include "../lltoa.h"
+#include "../cb_delay.h"
+#include "../Template.h"
+#include "../ESPUI.h"
 
 
 int counter;
@@ -219,7 +219,7 @@ void setupMocksWithSetup(String ssid = TEST_WIFI_SSID, String password = TEST_WI
 
 int main() {
     // env_init();
-    Tester tester(true, false);
+    Tester tester(true, true);
 
     Template::setErrorHandler([](const char* msg, const char* key) {
         strcpy(lastErrorMsg, msg);
@@ -247,18 +247,27 @@ int main() {
         String res = app.getSetterMessage("testselector", "testprop", "testcontent", true);
         DeserializationError error = deserializeJson(doc, res.c_str());
         tester->assertFalse(__FL__, error);
-        tester->assertEquals(__FL__, "testselector", doc[0]);
-        tester->assertEquals(__FL__, "testprop", doc[1]);
-        tester->assertEquals(__FL__, "testcontent", doc[2]);
-        tester->assertEquals(__FL__, true, doc[3]);
+        tester->assertEquals(__FL__, "testselector", doc["set"][0]);
+        tester->assertEquals(__FL__, "testprop", doc["set"][1]);
+        tester->assertEquals(__FL__, "testcontent", doc["set"][2]);
+        tester->assertEquals(__FL__, true, doc["set"][3]);
 
         res = app.getSetterMessage("testselector", "testprop", "testcontent", false);
         error = deserializeJson(doc, res.c_str());
         tester->assertFalse(__FL__, error);
-        tester->assertEquals(__FL__, "testselector", doc[0]);
-        tester->assertEquals(__FL__, "testprop", doc[1]);
-        tester->assertEquals(__FL__, "testcontent", doc[2]);
-        tester->assertEquals(__FL__, false, doc[3]);
+        tester->assertEquals(__FL__, "testselector", doc["set"][0]);
+        tester->assertEquals(__FL__, "testprop", doc["set"][1]);
+        tester->assertEquals(__FL__, "testcontent", doc["set"][2]);
+        tester->assertEquals(__FL__, false, doc["set"][3]);
+
+        res = app.getCallerMessage("testclass", "testmethod", "[\"testparam1\",\"testparam2\",123]");
+        error = deserializeJson(doc, res.c_str());
+        tester->assertFalse(__FL__, error);
+        tester->assertEquals(__FL__, "testclass", doc["call"]["class"]);
+        tester->assertEquals(__FL__, "testmethod", doc["call"]["method"]);
+        tester->assertEquals(__FL__, "testparam1", doc["call"]["args"][0]);
+        tester->assertEquals(__FL__, "testparam2", doc["call"]["args"][1]);
+        tester->assertEquals(__FL__, 123, doc["call"]["args"][2]);
     });
 
     tester.run("Test for ESPUIWiFiApp with setup", [](Tester* tester) {
@@ -377,18 +386,18 @@ int main() {
     tester.run("Test for ESPUIControlCounter", [](Tester* tester) {
         String id;
 
-        ESPUIControlCounter counterStart("");
+        ESPUICounter counterStart("");
         int first = atoi(counterStart.getId().c_str()); 
 
-        ESPUIControlCounter counterA("testprefixA-");
+        ESPUICounter counterA("testprefixA-");
         id = counterA.getId();
         tester->assertEquals(__FL__, ("testprefixA-" + String(first+1)).c_str(), id.c_str());
 
-        ESPUIControlCounter counterB("testprefixB-");
+        ESPUICounter counterB("testprefixB-");
         id = counterB.getId();
         tester->assertEquals(__FL__, ("testprefixB-" + String(first+2)).c_str(), id.c_str());
 
-        ESPUIControlCounter counterC("testprefixC-");
+        ESPUICounter counterC("testprefixC-");
         id = counterC.getId();
         tester->assertEquals(__FL__, ("testprefixC-" + String(first+3)).c_str(), id.c_str());
     });
