@@ -1,0 +1,456 @@
+<html>
+    <head>
+        <title></title>
+        <style>
+                .background {
+                        margin: 0; padding: 0; border: 0; background: none;
+                        position: absolute; top: 0; left: 0;
+                        z-index: -100000;
+                }
+        /*
+            .espui * {
+                margin: 10; padding: 0; border: 0; background: none;
+                font-family: 'Courier New', Courier, monospace;
+                display: block;
+                float: left;
+                font-size: 1em;
+                line-height: 2em;
+            }
+
+            .espui {
+                    background-color: lightgray;
+            }
+
+            .espui fieldset {
+                border: 1px inset gray;
+                padding: 0 2em;
+            }
+
+            .espui legend {
+                float: none;
+                font-weight: bold;
+            }
+
+            .espui label {
+                width: 10em;
+            }
+            .espui br {
+                float: none;
+                clear: both;
+            }
+
+            .espui input {
+                width: 10em;
+            }
+
+            .espui input[type="button"] {
+                border: 1px solid black;
+            }
+*/
+        </style>
+    </head>
+    <body class="espui">
+        <svg name="common" width="0" height="0" >
+            <defs>
+                <linearGradient id="gradient-gray-button-down" x1="80%" y1="116%" x2="0%" y2="0%">
+                    <stop offset="0%" style="stop-color:black;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:gray;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradient-gray-button-up" x1="80%" y1="116%" x2="0%" y2="0%">
+                    <stop offset="0%" style="stop-color:black;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:darkgray;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradient-gray-switch-background" x1="0%" y1="0%" x2="80%" y2="116%">
+                    <stop offset="0%" style="stop-color:gray;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:lightgray;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradient-scope-background-green" x1="0%" y1="0%" x2="80%" y2="116%">
+                    <stop offset="0%" style="stop-color:black;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:darkgreen;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradient-scope-background-blue" x1="0%" y1="0%" x2="80%" y2="116%">
+                    <stop offset="0%" style="stop-color:black;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:darkblue;stop-opacity:1" />
+                </linearGradient>
+                <filter id="filter-scope-line" x="0" y="0">
+                      <feOffset result="offOut" in="SourceGraphic" dx="0" dy="0" />
+                      <feGaussianBlur result="blurOut" in="offOut" stdDeviation="2" />
+                      <feBlend in="SourceGraphic" in2="blurOut" mode="normal" />
+                </filter>
+                <filter id='noize' x='0' y='0'>
+                        <feTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='10' stitchTiles='stitch'/>
+                </filter>
+             </defs>
+        </svg>
+        <svg name="background1" width="100%" height="100%" class="background">
+                <rect x="0" y="0" rx="0" ry="0" width="100%" height="100%"
+                         stroke="gray" stroke-width="0" 
+                         filter="url(#noize)" />
+        </svg>
+        <svg name="button1"
+            width="40" 
+            height="40" 
+            onmousedown="document.querySelectorAll('[name=button1] circle')[1].setAttribute('style', 'display: block;');" 
+            onmouseup="document.querySelectorAll('[name=button1] circle')[1].setAttribute('style', 'display: none;');">
+            
+            <circle cx="50%" cy="50%" r="44%" stroke="gray" stroke-width="3%" fill="url(#gradient-gray-button-up)"/>
+            <circle cx="50%" cy="50%" r="44%" stroke="gray" stroke-width="3%" fill="url(#gradient-gray-button-down)" style="display: none;" />
+        </svg>
+        
+        <svg name="swich1"
+            width="80" 
+            height="40"
+            onmousedown="document.querySelectorAll('[name=swich1] circle')[1].setAttribute('style', 'display: block;');" 
+            onmouseup="
+                let elems = document.querySelectorAll('[name=swich1] circle');
+                elems[1].setAttribute('style', 'display: none;');
+                let p = '75%';
+                if (elems[0].getAttribute('cx') == '75%') p = '25%';
+                elems[0].setAttribute('cx', p);
+                elems[1].setAttribute('cx', p);
+            ">
+                <rect x="1.5%" y="3%" rx="25%" ry="50%" width="97%" height="94%"
+                         stroke="gray" stroke-width="3%" fill="url(#gradient-gray-switch-background)" />
+                
+            <circle cx="75%" cy="50%" r="27%" stroke="gray" stroke-width="1%" fill="url(#gradient-gray-button-up)"/>
+            <circle cx="75%" cy="50%" r="27%" stroke="gray" stroke-width="1%" fill="url(#gradient-gray-button-down)" style="display: none;" />
+        </svg>
+
+        <svg name="scope1"
+            width="300" 
+            height="200" style="
+                border:2px inset;
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 1em;
+             ">
+                <rect x="0" y="0" width="100%" height="100%"
+                         stroke-width="0" fill="url(#gradient-scope-background-green)" />
+                
+                <path d="
+                        M 0 50 H 300
+                        M 0 100 H 300
+                        M 0 150 H 300
+                        M 50 0 V 200
+                        M 100 0 V 200
+                        M 150 0 V 200
+                        M 200 0 V 200
+                        M 250 0 V 200
+                " stroke="darkgreen" stroke-width="1" fill="none"
+                 filter="url(#filter-scope-line)" />
+
+                <text x="2" y="48" fill="darkcyan" filter="url(#filter-scope-line)">30</text>
+                <text x="2" y="98" fill="darkcyan" filter="url(#filter-scope-line)">20</text>
+                <text x="2" y="148" fill="darkcyan" filter="url(#filter-scope-line)">10</text>
+                <text x="2" y="198" fill="darkcyan" filter="url(#filter-scope-line)">0</text>
+                <text x="52" y="198" fill="darkcyan" filter="url(#filter-scope-line)">10</text>
+                <text x="102" y="198" fill="darkcyan" filter="url(#filter-scope-line)">20</text>
+                <text x="152" y="198" fill="darkcyan" filter="url(#filter-scope-line)">30</text>
+                <text x="202" y="198" fill="darkcyan" filter="url(#filter-scope-line)">40</text>
+                <text x="252" y="198" fill="darkcyan" filter="url(#filter-scope-line)">50</text>
+
+                <text x="298" y="48" text-anchor="end" fill="green" filter="url(#filter-scope-line)">15</text>
+                <text x="298" y="98" text-anchor="end" fill="green" filter="url(#filter-scope-line)">10</text>
+                <text x="298" y="148" text-anchor="end" fill="green" filter="url(#filter-scope-line)">5</text>
+                <text x="298" y="198" text-anchor="end" fill="green" filter="url(#filter-scope-line)">0</text>
+                <text x="2" y="1em" fill="green" filter="url(#filter-scope-line)">0</text>
+                <text x="52" y="1em" fill="green" filter="url(#filter-scope-line)">5</text>
+                <text x="102" y="1em" fill="green" filter="url(#filter-scope-line)">10</text>
+                <text x="152" y="1em" fill="green" filter="url(#filter-scope-line)">15</text>
+                <text x="202" y="1em" fill="green" filter="url(#filter-scope-line)">20</text>
+                <text x="252" y="1em" fill="green" filter="url(#filter-scope-line)">25</text>
+
+                 <path d="
+                        M 0 10
+                        L 20 20 
+                        L 40 25
+                        L 60 40 
+                        L 80 50 
+                        L 100 70 
+                        L 120 100
+                        L 140 123
+                        L 160 140
+                        L 180 150
+                        L 200 155
+                        L 220 160
+                        L 240 170
+                        L 260 180
+                        L 280 185
+                        L 300 170
+                    "
+                    stroke="cyan" stroke-width="2" fill="none" 
+                    filter="url(#filter-scope-line)"/>
+
+                 <path d="
+                        M 0 130
+                        L 20 120 
+                        L 40 115
+                        L 60 110 
+                        L 80 108 
+                        L 100 105 
+                        L 120 104
+                        L 140 100
+                        L 160 80
+                        L 180 60
+                        L 200 30
+                        L 220 28
+                        L 240 25
+                        L 260 29
+                        L 280 45
+                        L 300 73
+                    "
+                    stroke="lightgreen" stroke-width="2" fill="none" 
+                    filter="url(#filter-scope-line)"/>
+              
+        </svg><svg name="scope1"
+            width="300" 
+            height="200" style="
+                border:2px inset;
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 1em;
+             ">
+                <rect x="0" y="0" width="100%" height="100%"
+                         stroke-width="0" fill="url(#gradient-scope-background-blue)" />
+                
+                <path d="
+                        M 0 50 H 300
+                        M 0 100 H 300
+                        M 0 150 H 300
+                        M 50 0 V 200
+                        M 100 0 V 200
+                        M 150 0 V 200
+                        M 200 0 V 200
+                        M 250 0 V 200
+                " stroke="darkblue" stroke-width="1" fill="none"
+                 filter="url(#filter-scope-line)" />
+
+                <text x="2" y="48" fill="darkcyan" filter="url(#filter-scope-line)">30</text>
+                <text x="2" y="98" fill="darkcyan" filter="url(#filter-scope-line)">20</text>
+                <text x="2" y="148" fill="darkcyan" filter="url(#filter-scope-line)">10</text>
+                <text x="2" y="198" fill="darkcyan" filter="url(#filter-scope-line)">0</text>
+                <text x="52" y="198" fill="darkcyan" filter="url(#filter-scope-line)">10</text>
+                <text x="102" y="198" fill="darkcyan" filter="url(#filter-scope-line)">20</text>
+                <text x="152" y="198" fill="darkcyan" filter="url(#filter-scope-line)">30</text>
+                <text x="202" y="198" fill="darkcyan" filter="url(#filter-scope-line)">40</text>
+                <text x="252" y="198" fill="darkcyan" filter="url(#filter-scope-line)">50</text>
+
+                <text x="298" y="48" text-anchor="end" fill="green" filter="url(#filter-scope-line)">15</text>
+                <text x="298" y="98" text-anchor="end" fill="green" filter="url(#filter-scope-line)">10</text>
+                <text x="298" y="148" text-anchor="end" fill="green" filter="url(#filter-scope-line)">5</text>
+                <text x="298" y="198" text-anchor="end" fill="green" filter="url(#filter-scope-line)">0</text>
+                <text x="2" y="1em" fill="green" filter="url(#filter-scope-line)">0</text>
+                <text x="52" y="1em" fill="green" filter="url(#filter-scope-line)">5</text>
+                <text x="102" y="1em" fill="green" filter="url(#filter-scope-line)">10</text>
+                <text x="152" y="1em" fill="green" filter="url(#filter-scope-line)">15</text>
+                <text x="202" y="1em" fill="green" filter="url(#filter-scope-line)">20</text>
+                <text x="252" y="1em" fill="green" filter="url(#filter-scope-line)">25</text>
+
+                 <path d="
+                        M 0 10
+                        L 20 20 
+                        L 40 25
+                        L 60 40 
+                        L 80 50 
+                        L 100 70 
+                        L 120 100
+                        L 140 123
+                        L 160 140
+                        L 180 150
+                        L 200 155
+                        L 220 160
+                        L 240 170
+                        L 260 180
+                        L 280 185
+                        L 300 170
+                    "
+                    stroke="cyan" stroke-width="2" fill="none" 
+                    filter="url(#filter-scope-line)"/>
+
+                 <path d="
+                        M 0 130
+                        L 20 120 
+                        L 40 115
+                        L 60 110 
+                        L 80 108 
+                        L 100 105 
+                        L 120 104
+                        L 140 100
+                        L 160 80
+                        L 180 60
+                        L 200 30
+                        L 220 28
+                        L 240 25
+                        L 260 29
+                        L 280 45
+                        L 300 73
+                    "
+                    stroke="lightgreen" stroke-width="2" fill="none" 
+                    filter="url(#filter-scope-line)"/>
+              
+        </svg>
+
+        <br>
+
+        <fieldset>
+            <legend>legend</legend>
+                
+            <label>button</label>
+            <input type="button" value="Button">
+            <br>
+            
+            <label>checkbox</label>
+            <input type="checkbox">
+            <br>
+            
+            <label>color</label>
+            <input type="color">
+            <br>
+            
+            <label>date</label>
+            <input type="date">
+            <br>
+            
+            <label>datetime-local</label>
+            <input type="datetime-local">
+            <br>
+            
+            <label>email</label>
+            <input type="email">
+            <br>
+            
+            <label>file</label>
+            <input type="file">
+            <br>
+            
+            <label>hidden</label>
+            <input type="hidden">
+            <br>
+            
+            <label>image</label>
+            <input type="image">
+            <br>
+            
+            <label>month</label>
+            <input type="month">
+            <br>
+
+            <label>number</label>
+            <input type="number">
+            <br>
+            
+            <label>password</label>
+            <input type="password">
+            <br>
+            
+            <label>radio</label>
+            <input type="radio">
+            <br>
+            
+            <label>range</label>
+            <input type="range">
+            <br>
+
+            <label>range vertical</label>
+            <style>
+                input[type=range][orient=vertical]
+                {
+                    writing-mode: bt-lr; /* IE */
+                    -webkit-appearance: slider-vertical; /* WebKit */
+                    width: 16px;
+                    height: 129px;
+                    margin: 2px;
+                }
+            </style>
+            <input type="range" orient="vertical" />
+            <br>
+            
+            <label>reset</label>
+            <input type="reset">
+            <br>
+            
+            <label>search</label>
+            <input type="search">
+            <br>
+            
+            <label>submit</label>
+            <input type="submit">
+            <br>
+            
+            <label>tel</label>
+            <input type="tel">
+            <br>
+            
+            <label>text</label>
+            <input type="text">
+            <br>
+            
+            <label>time</label>
+            <input type="time">
+            <br>
+            
+            <label>url</label>
+            <input type="url">
+            <br>
+            
+            <label>week</label>
+            <input type="week">
+            <br>
+
+            <label>select</label>
+            <select>
+                <option>Volvo</option>
+                <option>Saab</option>
+                <option>Fiat</option>
+                <option>Audi</option>
+            </select>
+            <br>
+
+            <label>select multiple</label>
+            <select multiple>
+                <option>Volvo</option>
+                <option>Saab</option>
+                <option>Fiat</option>
+                <option>Audi</option>
+            </select>
+            <br>
+
+            <label>select optgroup</label>
+            <select>
+            <optgroup label="Swedish Cars">
+                <option value="volvo">Volvo</option>
+                <option value="saab">Saab</option>
+            </optgroup>
+            <optgroup label="German Cars">
+                <option value="mercedes">Mercedes</option>
+                <option value="audi">Audi</option>
+            </optgroup>
+            </select>
+            <br>
+
+            <label>textarea</label>
+            <textarea>
+                The cat was playing in the garden.
+            </textarea>
+            <br>
+
+            <label>button</label>
+            <button>Click Me!</button>
+            <br>
+
+            <label>datalist</label>
+            <input list="browsers">
+            <datalist id="browsers">
+                <option value="Internet Explorer">
+                <option value="Firefox">
+                <option value="Chrome">
+                <option value="Opera">
+                <option value="Safari">
+            </datalist>
+            <br>
+
+            <label>output</label>
+            <output>output</output>
+            <br>
+
+        </fieldset>
+    </body>
+</html>
